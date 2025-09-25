@@ -1,3 +1,5 @@
+import { GeoPoint } from "firebase/firestore";
+
 // types.ts
 export interface DateSpot {
   id: string;
@@ -15,6 +17,7 @@ export interface DateSpot {
   imageUrl?: string;
   createdAt: Date;
   createdBy?: string;
+  coordinates?: GeoPoint; //
 }
 // types.ts
 export interface Vote {

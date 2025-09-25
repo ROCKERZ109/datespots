@@ -587,7 +587,7 @@ export default function Home() {
         )}
 
         <footer className="mt-20 text-center text-gray-500 dark:text-gray-400 text-sm">
-          <p>Made with 💖 for people like Naz who appreciate thoughtful date ideas</p>
+          <p>Made with 💖 for anyone who appreciates thoughtful date ideas</p>
         </footer>
       </div>
 

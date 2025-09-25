@@ -5,19 +5,21 @@ import { storage } from '../lib/firebase';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { motion, AnimatePresence, Variants } from 'framer-motion';
 import OpenAI from 'openai';
+import dynamic from 'next/dynamic';
+import { GeoPoint } from 'firebase/firestore';
+
+const MapWithNoSSR = dynamic(() => import('./LeafLet'), { ssr: false });
 
 interface AddDateFormProps {
-  onAdd: (spot: Omit<DateSpot, 'id' | 'createdAt'>) => void;
+  onAdd: (spot: Omit<DateSpot, 'id' | 'createdAt' | 'coordinates'>) => void;
   onCancel?: () => void;
-  allSpots: DateSpot[]; // New prop for duplicate check
+  allSpots: DateSpot[];
 }
 
-// Initialize OpenAI client with your API key
-// NOTE: For a production app, you should NOT expose your API key on the frontend.
-// This is for demonstration purposes. A backend server is the secure way to do this.
+// OpenAI client
 const openai = new OpenAI({
-  apiKey: process.env.NEXT_PUBLIC_OPENAI_API_KEY, // Ensure this env variable is set
-  dangerouslyAllowBrowser: true, // This allows client-side use, but is not recommended for production.
+  apiKey: process.env.NEXT_PUBLIC_OPENAI_API_KEY,
+  dangerouslyAllowBrowser: true,
 });
 
 const CATEGORY_OPTIONS = [
@@ -29,7 +31,7 @@ const CATEGORY_OPTIONS = [
   { value: 'adventure', label: '🎯 Adventure' },
   { value: 'water', label: '🌊 Water Activities' },
   { value: 'view', label: '🌆 Viewpoints' },
-  { value: 'entertainment', label: '🎪 Entertainment' }
+  { value: 'entertainment', label: '🎪 Entertainment' },
 ];
 
 const INITIAL_FORM_STATE = {
@@ -41,6 +43,7 @@ const INITIAL_FORM_STATE = {
   tags: '',
   imageUrl: '',
   initialRating: 4,
+  coordinates: null as { lat: number; lng: number } | null,
 };
 
 const AddDateForm: React.FC<AddDateFormProps> = ({ onAdd, onCancel, allSpots }) => {
@@ -53,6 +56,7 @@ const AddDateForm: React.FC<AddDateFormProps> = ({ onAdd, onCancel, allSpots }) 
   const [useUrl, setUseUrl] = useState(true);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [showMap, setShowMap] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -64,9 +68,7 @@ const AddDateForm: React.FC<AddDateFormProps> = ({ onAdd, onCancel, allSpots }) 
       const file = e.target.files[0];
       setImageFile(file);
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setPreviewImage(reader.result as string);
-      };
+      reader.onloadend = () => setPreviewImage(reader.result as string);
       reader.readAsDataURL(file);
     }
   };
@@ -90,30 +92,20 @@ const AddDateForm: React.FC<AddDateFormProps> = ({ onAdd, onCancel, allSpots }) 
 
   const uploadImageAndGetUrl = async (): Promise<string> => {
     if (!imageFile) return '';
-    
     return new Promise((resolve, reject) => {
       const storageRef = ref(storage, `date-spots/${Date.now()}-${imageFile.name}`);
       const uploadTask = uploadBytesResumable(storageRef, imageFile);
-      
-      uploadTask.on('state_changed',
-        (snapshot) => {
-          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-          setUploadProgress(progress);
-        },
-        (error) => {
-          setUploadProgress(null);
-          console.error('Error uploading image:', error);
-          reject(error);
-        },
+
+      uploadTask.on(
+        'state_changed',
+        snapshot => setUploadProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100),
+        err => { setUploadProgress(null); reject(err); },
         async () => {
           try {
-            const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+            const url = await getDownloadURL(uploadTask.snapshot.ref);
             setUploadProgress(null);
-            resolve(downloadURL);
-          } catch (error) {
-            setUploadProgress(null);
-            reject(error);
-          }
+            resolve(url);
+          } catch (err) { setUploadProgress(null); reject(err); }
         }
       );
     });
@@ -124,211 +116,106 @@ const AddDateForm: React.FC<AddDateFormProps> = ({ onAdd, onCancel, allSpots }) 
       const response = await openai.chat.completions.create({
         model: "gpt-3.5-turbo",
         messages: [
-          { role: "system", content: "You are a sentiment analysis bot. Analyze the sentiment of the following text and respond with a single number from -1 (very negative) to 1 (very positive). Do not include any other text." },
+          { role: "system", content: "You are a sentiment analysis bot. Respond with a single number -1 to 1." },
           { role: "user", content: text },
         ],
         max_tokens: 5,
       });
 
-      const scoreText = response.choices[0].message.content;
-      const score = parseFloat(scoreText || '');
-      
-      if (isNaN(score) || score < -1 || score > 1) {
-        console.error('Invalid sentiment score received:', scoreText);
-        return null;
-      }
-
-      return score;
-    } catch (err) {
-      console.error('Error fetching sentiment score from OpenAI:', err);
+      const score = parseFloat(response.choices[0].message.content || '');
+      return isNaN(score) || score < -1 || score > 1 ? null : score;
+    } catch {
       return null;
     }
   };
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
-    
     if (!formData.name || !formData.location || !formData.description) {
-      setError('Please fill in all required fields');
-      return;
+      setError('Please fill in all required fields'); return;
     }
-    
-    setIsSubmitting(true);
-    setError('');
-    
+
+    setIsSubmitting(true); setError('');
+
     try {
-      // === 1. Local Duplicate Check ===
-      const isDuplicate = allSpots.some(spot => 
-        spot.name.toLowerCase() === formData.name.toLowerCase() && 
+      // Duplicate check
+      if (allSpots.some(spot =>
+        spot.name.toLowerCase() === formData.name.toLowerCase() &&
         spot.location.toLowerCase() === formData.location.toLowerCase()
-      );
+      )) throw new Error('A date spot with this name and location already exists.');
 
-      if (isDuplicate) {
-        throw new Error('A date spot with this name and location already exists. Please check your spelling or add a new one.');
-      }
-
-      // === 2. Sentiment Analysis with OpenAI ===
+      // Sentiment check
       const sentimentScore = await getSentimentScore(formData.description);
-      const SENTIMENT_THRESHOLD = 0; // Customize this threshold as needed
-      
-      if (sentimentScore === null || sentimentScore <= SENTIMENT_THRESHOLD) {
-        throw new Error('The description of this date spot seems unenthusiastic. Please write a more positive review!');
-      }
+      if (sentimentScore === null || sentimentScore <= 0)
+        throw new Error('The description seems unenthusiastic. Please write a more positive review!');
 
       let imageUrl = formData.imageUrl;
-      if (!useUrl && imageFile) {
-        imageUrl = await uploadImageAndGetUrl();
-      }
-      
-      const tagArray = formData.tags
-        .split(',')
-        .map(tag => tag.trim())
-        .filter(tag => tag.length > 0);
-      
+      if (!useUrl && imageFile) imageUrl = await uploadImageAndGetUrl();
+
+      const tagArray = formData.tags.split(',').map(t => t.trim()).filter(Boolean);
+
       const newSpot = {
         ...formData,
         priceLevel: parseInt(formData.priceLevel.toString()) as 1 | 2 | 3 | 4,
-        tags: tagArray.length > 0 ? tagArray : ['date spot'],
+        tags: tagArray.length ? tagArray : ['date spot'],
         rating: formData.initialRating,
         totalVotes: 1,
         upvotes: 0,
         downvotes: 0,
         imageUrl: imageUrl || '',
+       coordinates: formData.coordinates ? new GeoPoint(formData.coordinates.lat, formData.coordinates.lng) : null,
+ 
       };
 
       await onAdd(newSpot);
-
       setFormData(INITIAL_FORM_STATE);
-      setImageFile(null);
-      setUseUrl(true);
-      setPreviewImage(null);
-      setUploadProgress(null);
-      setSuccess(true);
-      
-      setTimeout(() => setSuccess(false), 3000);
+      setImageFile(null); setUseUrl(true); setPreviewImage(null); setUploadProgress(null);
+      setSuccess(true); setTimeout(() => setSuccess(false), 3000);
     } catch (err) {
-      if (err instanceof Error) {
-        setError(err.message || 'Failed to add date spot. Please try again.');
-      } else {
-        setError('Failed to add date spot. Please try again.');
-      }
-      console.error(err);
-    } finally {
-      setIsSubmitting(false);
-    }
+      setError(err instanceof Error ? err.message : 'Failed to add date spot.');
+    } finally { setIsSubmitting(false); }
   }, [formData, imageFile, useUrl, onAdd, allSpots]);
 
   const renderRatingHearts = () => {
     const displayRating = hoverRating !== null ? hoverRating : formData.initialRating;
-    
     return (
       <motion.div layout className="flex items-center space-x-2">
-        {[1, 2, 3, 4, 5].map((value) => (
+        {[1, 2, 3, 4, 5].map(value => (
           <motion.button
-            key={value}
-            type="button"
-            onClick={() => handleRatingClick(value)}
+            key={value} type="button" onClick={() => handleRatingClick(value)}
             onMouseEnter={() => handleRatingHover(value)}
             onMouseLeave={() => handleRatingHover(null)}
             className="relative group focus:outline-none"
-            aria-label={`Rate ${value} hearts`}
-            whileHover={{ scale: 1.15 }}
-            whileTap={{ scale: 0.95 }}
-            transition={{ type: 'spring', stiffness: 400, damping: 17 }}
+            whileHover={{ scale: 1.15 }} whileTap={{ scale: 0.95 }}
           >
             <motion.span
               className="text-3xl cursor-pointer transition-all duration-200 relative z-10"
               animate={{
                 color: value <= displayRating ? '#ec4899' : '#d1d5db',
-                textShadow: value <= displayRating ? '0 0 20px rgba(236, 72, 153, 0.3)' : 'none',
                 filter: value <= displayRating ? 'brightness(1.1)' : 'brightness(0.3)'
               }}
-              transition={{ duration: 0.15 }}
-            >
-              💖
-            </motion.span>
-            <motion.div
-              className="absolute inset-0 rounded-full bg-pink-100 dark:bg-pink-900/20"
-              initial={{ scale: 0, opacity: 0 }}
-              animate={{ 
-                scale: value <= displayRating ? 1.2 : 0,
-                opacity: value <= displayRating ? 0.3 : 0
-              }}
-              transition={{ duration: 0.2 }}
-            />
+            >💖</motion.span>
           </motion.button>
         ))}
       </motion.div>
     );
   };
 
-  const containerVariants: Variants = {
-    hidden: { opacity: 0, y: 30 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: {
-        duration: 0.6,
-        ease: [0.25, 0.46, 0.45, 0.94],
-        staggerChildren: 0.1,
-      },
-    },
-  };
-
-  const itemVariants: Variants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: { duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }
-    }
-  };
+  const containerVariants: Variants = { hidden: { opacity: 0, y: 30 }, visible: { opacity: 1, y: 0, transition: { duration: 0.6, staggerChildren: 0.1 } } };
+  const itemVariants: Variants = { hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.5 } } };
 
   const inputClass = "w-full px-4 py-3 border-2 border-gray-200 dark:border-gray-600 rounded-2xl focus:ring-4 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-400 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 transition-all duration-300 shadow-sm hover:shadow-md placeholder-gray-400 dark:placeholder-gray-500 backdrop-blur-sm";
   const labelClass = "block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 tracking-wide";
 
   return (
-    <motion.div
-      variants={containerVariants}
-      initial="hidden"
-      animate="visible"
-      className="relative overflow-hidden"
-    >
-      {/* Subtle background pattern */}
-      <div className="absolute inset-0 bg-gradient-to-br from-pink-50/30 via-purple-50/20 to-indigo-50/30 dark:from-pink-900/10 dark:via-purple-900/10 dark:to-indigo-900/10 pointer-events-none" />
-      <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg width=60 height=60 viewBox=0 0 60 60 xmlns=http://www.w3.org/2000/svg%3E%3Cg fill=none fill-rule=evenodd%3E%3Cg fill=%23ec4899 fill-opacity=0.03%3E%3Cpath d=m36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')] opacity-30 dark:opacity-10 pointer-events-none" />
-      
+    <motion.div variants={containerVariants} initial="hidden" animate="visible" className="relative overflow-hidden">
       <div className="relative bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-3xl border border-gray-200/50 dark:border-gray-700/50 shadow-2xl p-8">
         <AnimatePresence>
-          {error && (
-            <motion.div
-              initial={{ opacity: 0, y: -20, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -20, scale: 0.95 }}
-              className="mb-6 p-5 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 rounded-2xl text-sm border border-red-200 dark:border-red-800/50 shadow-lg backdrop-blur-sm"
-            >
-              <div className="flex items-center">
-                <span className="text-red-500 mr-3 text-lg">⚠️</span>
-                <span className="font-medium">{error}</span>
-              </div>
-            </motion.div>
-          )}
-          
-          {success && (
-            <motion.div
-              initial={{ opacity: 0, y: -20, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -20, scale: 0.95 }}
-              className="mb-6 p-5 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded-2xl text-sm border border-green-200 dark:border-green-800/50 shadow-lg backdrop-blur-sm"
-            >
-              <div className="flex items-center">
-                <span className="text-green-500 mr-3 text-lg">🎉</span>
-                <span className="font-medium">Date spot added successfully!</span>
-              </div>
-            </motion.div>
-          )}
+          {error && <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="mb-6 p-5 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 rounded-2xl">{error}</motion.div>}
+          {success && <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="mb-6 p-5 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded-2xl">Date spot added successfully!</motion.div>}
         </AnimatePresence>
-        
+
+       
         <form onSubmit={handleSubmit} className="space-y-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <motion.div variants={itemVariants}>
@@ -369,7 +256,22 @@ const AddDateForm: React.FC<AddDateFormProps> = ({ onAdd, onCancel, allSpots }) 
               />
             </motion.div>
           </div>
-          
+
+          <motion.div variants={itemVariants}>
+            <button type="button" onClick={() => setShowMap(prev => !prev)} className="mt-3 px-4 py-2 bg-pink-500 text-white rounded-xl shadow hover:bg-pink-600">
+              {showMap ? "Hide Map" : formData.coordinates ? "Change Location on Map" : "Add Location on Map"}
+            </button>
+          </motion.div>
+
+          {showMap && (
+            <motion.div variants={itemVariants} className="mt-4 h-64">
+              <MapWithNoSSR
+                selectedCoordinates={formData.coordinates}
+                onSelect={(latLng) => setFormData(p => ({ ...p, coordinates: latLng }))}
+              />
+            </motion.div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <motion.div variants={itemVariants}>
               <label htmlFor="category" className={labelClass}>
@@ -735,6 +637,18 @@ const AddDateForm: React.FC<AddDateFormProps> = ({ onAdd, onCancel, allSpots }) 
           </motion.div>
         </form>
       </div>
+      {/* Global submitting overlay */}
+{isSubmitting && (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+    <div className="flex flex-col items-center">
+      <div className="w-16 h-16 border-4 border-pink-500 border-t-transparent rounded-full animate-spin"></div>
+      <p className="mt-4 text-white text-lg font-semibold">
+        Adding your spot...
+      </p>
+    </div>
+  </div>
+)}
+
     </motion.div>
   );
 };

@@ -64,5 +64,5 @@ MIT – feel free to use and remix.
 
 ## 💡 Inspiration
 Built to share the kind of **personal, thoughtful** date spots  
-you’d send to someone special (like Naz 💫)—  
+you’d send to someone special  
 because the best memories start with the right place.

@@ -2,7 +2,10 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { DateSpot } from '../types';
-
+import { Heart, HeartIcon, HeartOff, HeartPlusIcon } from 'lucide-react';
+import { ChevronDoubleDownIcon, ChevronDoubleUpIcon } from '@heroicons/react/24/outline';
+import { i } from 'framer-motion/client';
+import { LiaHeartSolid } from 'react-icons/lia';
 interface DateCardProps {
   spot: DateSpot;
   onRate: (id: string, rating: number) => void;
@@ -14,6 +17,8 @@ interface DateCardProps {
 const DateCard: React.FC<DateCardProps> = ({ spot, onRate, onVote, user, userVote }) => {
   const [isRating, setIsRating] = useState(false);
   const [localUserVote, setLocalUserVote] = useState<'up' | 'down' | null>(userVote);
+
+  const [isHovered, setIsHovered] = useState(false);
 
   React.useEffect(() => {
     setLocalUserVote(userVote);
@@ -93,7 +98,7 @@ const DateCard: React.FC<DateCardProps> = ({ spot, onRate, onVote, user, userVot
 
   const handleVote = (voteType: 'up' | 'down') => {
     if (!user) {
-      alert('Please sign in with Google to vote on date spots!');
+      setShowLoginDialog(true);
       return;
     }
 
@@ -105,6 +110,8 @@ const DateCard: React.FC<DateCardProps> = ({ spot, onRate, onVote, user, userVot
       setLocalUserVote(voteType);
     }
   };
+
+
 
   // Animation variants for the card
   const cardVariants = {
@@ -119,10 +126,16 @@ const DateCard: React.FC<DateCardProps> = ({ spot, onRate, onVote, user, userVot
     visible: { opacity: 1, height: "auto", marginTop: "1rem", transition: { duration: 0.2 } },
     exit: { opacity: 0, height: 0, marginTop: 0, transition: { duration: 0.2 } }
   };
+  const [showLoginDialog, setShowLoginDialog] = useState(false);
 
   return (
     <motion.div
-      className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden mb-6 border border-pink-100 dark:border-gray-700 hover:shadow-2xl transition-shadow duration-300"
+
+      onHoverStart={() => setIsHovered(true)}
+      onHoverEnd={() => setIsHovered(false)}
+      onTouchStart={() => setIsHovered(prev => !prev)} // mobile tap toggle
+          className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden mb-6 border border-pink-100 dark:border-gray-700 hover:shadow-2xl transition-shadow duration-300"
+
       variants={cardVariants}
       initial="hidden"
       animate="visible"
@@ -155,6 +168,7 @@ const DateCard: React.FC<DateCardProps> = ({ spot, onRate, onVote, user, userVot
           </motion.div>
         </div>
       ) : (
+
         <div className="relative h-48 bg-gradient-to-r from-pink-200 to-purple-200 dark:from-pink-700 dark:to-purple-800 flex items-center justify-center">
           <div className="text-4xl text-white">📍</div>
           <motion.div
@@ -170,7 +184,9 @@ const DateCard: React.FC<DateCardProps> = ({ spot, onRate, onVote, user, userVot
 
       {/* Content Section */}
       <div className="p-5">
+
         {/* Title and Location */}
+
         <motion.div
           className="flex justify-between items-start mb-2"
           initial={{ opacity: 0, x: -10 }}
@@ -186,18 +202,34 @@ const DateCard: React.FC<DateCardProps> = ({ spot, onRate, onVote, user, userVot
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.15 }}
         >
+
           <span className="mr-1.5 text-base">📍</span>
-          <span className="truncate">{spot.location}</span>
+          {spot.coordinates ? (
+            <a
+              href={`https://www.google.com/maps/search/?api=1&query=${spot.coordinates.latitude},${spot.coordinates.longitude}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="truncate text-pink-600 dark:text-pink-400 hover:underline"
+            >
+              {spot.location}
+            </a>
+          ) : (
+            <span className="truncate">{spot.location}</span>
+          )}
         </motion.p>
 
-        <motion.p
-          className="text-gray-700 dark:text-gray-200 mb-3 text-sm leading-relaxed line-clamp-2"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.2 }}
+
+        <motion.div
+          className="overflow-hidden mb-3"
+          initial={{ height: 40 }} // roughly 2 lines
+          animate={{ height: isHovered ? 'auto' : 40 }}
+          transition={{ duration: 0.3 }}
         >
-          {spot.description}
-        </motion.p>
+          <p className="text-gray-700 dark:text-gray-200 text-sm leading-relaxed">
+            {spot.description}
+          </p>
+        </motion.div>
+
 
         <motion.div
           className="flex flex-wrap gap-2 mb-3"
@@ -226,7 +258,7 @@ const DateCard: React.FC<DateCardProps> = ({ spot, onRate, onVote, user, userVot
               {renderHearts(spot.rating)}
             </div>
             <span className="text-xs text-gray-600 dark:text-gray-400">
-               {spot.rating.toFixed(1)} ({spot.upvotes + spot.downvotes})
+              {spot.rating.toFixed(1)} ({spot.upvotes + spot.downvotes})
             </span>
           </div>
 
@@ -252,42 +284,51 @@ const DateCard: React.FC<DateCardProps> = ({ spot, onRate, onVote, user, userVot
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.35 }}
         >
-          <div className="flex items-center space-x-2">
+          <div className="flex justify-around items-center w-full space-x-4">
+            {/* Upvote */}
             <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
               onClick={() => handleVote('up')}
-              className={`flex items-center space-x-1 px-2.5 py-0.5 rounded-full transition-colors text-sm font-medium ${
-                localUserVote === 'up'
-                  ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
-                  : 'bg-gray-100 text-gray-600 hover:bg-green-50 hover:text-green-700 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-green-900/20 dark:hover:text-green-300'
-              }`}
-              aria-label="Upvote this spot"
-              disabled={!user}
+
+              className={`relative flex flex-col items-center px-2 py-3 rounded-xl border transition-colors shadow-sm
+      ${localUserVote === 'up'
+                  ? 'bg-green-100 border-green-300 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                  : 'bg-gray-50 border-gray-200 text-gray-600 hover:border-green-400 hover:text-green-700 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300 dark:hover:border-green-400'}`
+              }
             >
-              <span>👍</span>
-              <span>{spot.upvotes}</span>
+              <div className="flex items-baseline space-x-1">
+            <LiaHeartSolid className="w-6 h-6 text-red-400" />
+                <span className="text-xs font-semibold mt-1">{spot.upvotes}</span>
+              </div>
+
             </motion.button>
 
-            <motion.button
+            {/* Net score bubble */}
+            <motion.div
+              className="items-center px-2 py-3 rounded-full bg-pink-50 dark:bg-pink-900/30 border border-pink-200 dark:border-pink-700 text-pink-700 dark:text-pink-300 text-sm font-semibold shadow-inner"
               whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => handleVote('down')}
-              className={`flex items-center space-x-1 px-2.5 py-0.5 rounded-full transition-colors text-sm font-medium ${
-                localUserVote === 'down'
-                  ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
-                  : 'bg-gray-100 text-gray-600 hover:bg-red-50 hover:text-red-700 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-red-900/20 dark:hover:text-red-300'
-              }`}
-              aria-label="Downvote this spot"
-              disabled={!user}
             >
-              <span>👎</span>
-              <span>{spot.downvotes}</span>
-            </motion.button>
-          </div>
+              {spot.upvotes - spot.downvotes >= 0 ? '+' : ''}{spot.upvotes - spot.downvotes}
+            </motion.div>
 
-          <div className="text-xs text-gray-500 dark:text-gray-400 font-semibold">
-            Net: {spot.upvotes - spot.downvotes}
+            {/* Downvote */}
+            <motion.button
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
+              onClick={() => handleVote('down')}
+
+              className={`relative flex flex-col items-center px-2 py-3 rounded-xl border transition-colors shadow-sm
+      ${localUserVote === 'down'
+                  ? 'bg-red-100 border-red-300 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+                  : 'bg-gray-50 border-gray-200 text-gray-600 hover:border-red-400 hover:text-red-700 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300 dark:hover:border-red-400'}`
+              }
+            >
+              <div className="flex items-baseline space-x-1">
+              <HeartOff className="w-6 h-6 text-red-400" />
+                <span className="text-xs font-semibold mt-1">{spot.downvotes}</span>
+              </div>
+            </motion.button>
           </div>
         </motion.div>
 
@@ -320,6 +361,38 @@ const DateCard: React.FC<DateCardProps> = ({ spot, onRate, onVote, user, userVot
           )}
         </AnimatePresence>
       </div>
+      {/* ✨ Login required popup */}
+      <AnimatePresence>
+        {showLoginDialog && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div
+              className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 max-w-xs w-full text-center border border-pink-200 dark:border-gray-700"
+              initial={{ scale: 0.8 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0.8 }}
+            >
+              <h4 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-2">
+                Sign in required
+              </h4>
+              <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
+                Please sign in with Google to vote on date spots.
+              </p>
+              <button
+                onClick={() => setShowLoginDialog(false)}
+                className="px-4 py-2 rounded-full bg-pink-500 hover:bg-pink-600 text-white font-medium shadow-md transition-colors"
+              >
+                Got it
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
     </motion.div>
   );
 };
