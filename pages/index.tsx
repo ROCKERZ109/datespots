@@ -13,17 +13,29 @@ import { useTheme } from 'next-themes';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // --- AuthButton Component ---
-const AuthButton: React.FC = () => {
+const AuthButton: React.FC<{ inApp: boolean }> = ({ inApp }) => {
   const [user, loading] = useAuthState(auth);
 
   const handleGoogleSignIn = async () => {
-    try {
-      await signInWithPopup(auth, googleProvider);
-    } catch (error) {
-      console.error('Error signing in with Google:', error);
+    if (inApp) {
+      alert(
+        'Google sign-in is disabled inside in-app browsers.\n' +
+        'Please open this page in your default browser (Safari/Chrome).'
+      );
+      return;
     }
+    try {
+    await signInWithPopup(auth, googleProvider);
+  } catch (error: any) {
+    if (error.code === 'auth/cancelled-popup-request') {
+      // User closed popup or another popup is open, silently ignore
+      console.log('Google sign-in was cancelled by user or popup conflict.');
+      return;
+    }
+    console.error('Error signing in with Google:', error);
+    alert('Failed to sign in. Please try again.');
+  }
   };
-
   const handleSignOut = async () => {
     try {
       await signOut(auth);
@@ -89,7 +101,9 @@ const AuthButton: React.FC = () => {
           </svg>
           <span>Sign in with Google</span>
         </button>
+       
       )}
+       
     </div>
   );
 };
@@ -141,6 +155,22 @@ function haversine(lat1: number, lon1: number, lat2: number, lon2: number) {
     Math.sin(dLon / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(a));
 }
+export function isInAppBrowser() {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent || navigator.vendor;
+
+  const patterns = [
+    /FBAN|FBAV/i,     // Facebook app
+    /Instagram/i,
+    /Line/i,
+    /Twitter/i,
+    /LinkedInApp/i,
+    /Messenger/i
+  ];
+
+  return patterns.some((p) => p.test(ua));
+}
+
 
 // --- Main Home Component ---
 export default function Home() {
@@ -156,6 +186,7 @@ export default function Home() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [userLocation, setUserLocation] = useState<{ lat: number, lng: number } | null>(null);
   const searchRef = useRef<HTMLDivElement>(null);
+  const [inApp, setInApp] = useState(false);
 
   useEffect(() => {
     if (navigator.geolocation) {
@@ -165,6 +196,10 @@ export default function Home() {
         { enableHighAccuracy: true }
       );
     }
+  }, []);
+  useEffect(() => {
+    // run only on client
+    setInApp(isInAppBrowser());
   }, []);
 
   // Fetch user votes
@@ -503,7 +538,7 @@ export default function Home() {
             <div></div>
             <div className="flex items-center space-x-4">
               <ThemeToggle />
-              <AuthButton />
+              <AuthButton inApp={inApp} />
             </div>
           </div>
 
@@ -511,9 +546,10 @@ export default function Home() {
             💖 DateSpots
           </h1>
           <p className="text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
-           Discover and share the most romantic date spots in Gothenburg and beyond. Crowdsourced by people like you!
+            Discover and share the most romantic date spots in Gothenburg and beyond. Crowdsourced by people like you!
           </p>
         </header>
+
 
         {/* Add Spot Button */}
         <div className="flex justify-center mb-12">
@@ -539,6 +575,7 @@ export default function Home() {
               <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">Sign in with Google to add spots</p>
             </div>
           )}
+
         </div>
 
         {/* Filter and Sort Section */}
@@ -606,8 +643,8 @@ export default function Home() {
                 <option value="rating" className="dark:bg-gray-800">Hearts</option>
                 <option value="name" className="dark:bg-gray-800">Name</option>
                 <option value="createdAt" className="dark:bg-gray-800">Newest</option>
-                 <option value="distance" className="dark:bg-gray-800">Nearest</option>
-              
+                <option value="distance" className="dark:bg-gray-800">Nearest</option>
+
               </select>
             </div>
           </div>
