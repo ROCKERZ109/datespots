@@ -348,7 +348,7 @@ const AddDateForm: React.FC<AddDateFormProps> = ({ onAdd, onCancel, allSpots, us
                   onClick={handleUseCurrentLocation}
                   className="px-4 py-2 bg-pink-500 text-white rounded-xl shadow hover:bg-pink-600 transition-all duration-300"
                 >
-                  📍 Use My Current Location
+                  📍 Choose Current Location
                 </button>
               </motion.div></>
 

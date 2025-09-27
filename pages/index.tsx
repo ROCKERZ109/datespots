@@ -152,7 +152,7 @@ export default function Home() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [minRating, setMinRating] = useState<number>(0);
-  const [sortBy, setSortBy] = useState<'rating' | 'name' | 'createdAt'>('rating');
+  const [sortBy, setSortBy] = useState<'rating' | 'name' | 'distance' | 'createdAt'>('rating');
   const [showAddForm, setShowAddForm] = useState(false);
   const [userLocation, setUserLocation] = useState<{ lat: number, lng: number } | null>(null);
   const searchRef = useRef<HTMLDivElement>(null);
@@ -295,16 +295,20 @@ export default function Home() {
       result = result.filter(spot => spot.rating >= minRating);
     }
 
+
+
     result.sort((a, b) => {
+      if (sortBy === 'distance' && userLocation && a.coordinates && b.coordinates) {
+        const da = haversine(userLocation.lat, userLocation.lng, a.coordinates.latitude, a.coordinates.longitude);
+        const db = haversine(userLocation.lat, userLocation.lng, b.coordinates.latitude, b.coordinates.longitude);
+        return da - db;
+      }
+
       switch (sortBy) {
-        case 'rating':
-          return b.rating - a.rating;
-        case 'name':
-          return a.name.localeCompare(b.name);
-        case 'createdAt':
-          return b.createdAt.getTime() - a.createdAt.getTime();
-        default:
-          return 0;
+        case 'rating': return b.rating - a.rating;
+        case 'name': return a.name.localeCompare(b.name);
+        case 'createdAt': return b.createdAt.getTime() - a.createdAt.getTime();
+        default: return 0;
       }
     });
 
@@ -507,7 +511,7 @@ export default function Home() {
             💖 DateSpots
           </h1>
           <p className="text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
-            Discover and share the most romantic date spots in Gothenburg. Crowdsourced by people like you!
+           Discover and share the most romantic date spots in Gothenburg and beyond. Crowdsourced by people like you!
           </p>
         </header>
 
@@ -602,6 +606,8 @@ export default function Home() {
                 <option value="rating" className="dark:bg-gray-800">Hearts</option>
                 <option value="name" className="dark:bg-gray-800">Name</option>
                 <option value="createdAt" className="dark:bg-gray-800">Newest</option>
+                 <option value="distance" className="dark:bg-gray-800">Nearest</option>
+              
               </select>
             </div>
           </div>
