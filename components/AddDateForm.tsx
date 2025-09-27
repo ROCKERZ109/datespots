@@ -1,5 +1,5 @@
 // components/AddDateForm.tsx
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { DateSpot } from '../types';
 import { storage } from '../lib/firebase';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
@@ -7,6 +7,7 @@ import { motion, AnimatePresence, Variants } from 'framer-motion';
 import OpenAI from 'openai';
 import dynamic from 'next/dynamic';
 import { GeoPoint } from 'firebase/firestore';
+import { DogIcon, LucideDog } from 'lucide-react';
 
 const MapWithNoSSR = dynamic(() => import('./LeafLet'), { ssr: false });
 
@@ -14,6 +15,7 @@ interface AddDateFormProps {
   onAdd: (spot: Omit<DateSpot, 'id' | 'createdAt' | 'coordinates'>) => void;
   onCancel?: () => void;
   allSpots: DateSpot[];
+  userLocation: { lat: number; lng: number } | null;
 }
 
 // OpenAI client
@@ -44,9 +46,10 @@ const INITIAL_FORM_STATE = {
   imageUrl: '',
   initialRating: 4,
   coordinates: null as { lat: number; lng: number } | null,
+  petFriendly: false,
 };
 
-const AddDateForm: React.FC<AddDateFormProps> = ({ onAdd, onCancel, allSpots }) => {
+const AddDateForm: React.FC<AddDateFormProps> = ({ onAdd, onCancel, allSpots, userLocation }) => {
   const [formData, setFormData] = useState(INITIAL_FORM_STATE);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -110,6 +113,19 @@ const AddDateForm: React.FC<AddDateFormProps> = ({ onAdd, onCancel, allSpots }) 
       );
     });
   };
+  const getLandmarkFromCoords = async (lat: number, lng: number): Promise<string> => {
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`
+      );
+      const data = await res.json();
+      return data.display_name || '';
+    } catch (err) {
+      console.error('Reverse geocoding failed', err);
+      return '';
+    }
+  };
+
 
   const getSentimentScore = async (text: string): Promise<number | null> => {
     try {
@@ -128,11 +144,24 @@ const AddDateForm: React.FC<AddDateFormProps> = ({ onAdd, onCancel, allSpots }) 
       return null;
     }
   };
+  const formRef = useRef<HTMLDivElement>(null);
+  const showError = (message: string) => {
+    setError(message);
+    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
+
+
     e.preventDefault();
     if (!formData.name || !formData.location || !formData.description) {
       setError('Please fill in all required fields'); return;
+    }
+    if (!formData.coordinates) {
+      showError('Please select a location for the date spot.');
+      setIsSubmitting(false);
+      return;
     }
 
     setIsSubmitting(true); setError('');
@@ -146,9 +175,10 @@ const AddDateForm: React.FC<AddDateFormProps> = ({ onAdd, onCancel, allSpots }) 
 
       // Sentiment check
       const sentimentScore = await getSentimentScore(formData.description);
-      if (sentimentScore === null || sentimentScore <= 0)
-        throw new Error('The description seems unenthusiastic. Please write a more positive review!');
-
+      if (sentimentScore === null || sentimentScore <= 0) {
+        showError('The description seems unenthusiastic. Please write a more positive review!');
+        return;
+      }
       let imageUrl = formData.imageUrl;
       if (!useUrl && imageFile) imageUrl = await uploadImageAndGetUrl();
 
@@ -163,8 +193,9 @@ const AddDateForm: React.FC<AddDateFormProps> = ({ onAdd, onCancel, allSpots }) 
         upvotes: 0,
         downvotes: 0,
         imageUrl: imageUrl || '',
-       coordinates: formData.coordinates ? new GeoPoint(formData.coordinates.lat, formData.coordinates.lng) : null,
- 
+        petFriendly: formData.petFriendly,
+        coordinates: formData.coordinates ? new GeoPoint(formData.coordinates.lat, formData.coordinates.lng) : null,
+
       };
 
       await onAdd(newSpot);
@@ -175,6 +206,35 @@ const AddDateForm: React.FC<AddDateFormProps> = ({ onAdd, onCancel, allSpots }) 
       setError(err instanceof Error ? err.message : 'Failed to add date spot.');
     } finally { setIsSubmitting(false); }
   }, [formData, imageFile, useUrl, onAdd, allSpots]);
+  const handleUseCurrentLocation = () => {
+
+    if (!navigator.geolocation) {
+      setError("Geolocation is not supported by your browser.");
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+      const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      const landmark = await getLandmarkFromCoords(coords.lat, coords.lng);
+      setFormData(p => ({ ...p, coordinates: coords, location: landmark || p.location }));
+      setShowMap(true); // ensure map is visible
+    });
+
+    // navigator.geolocation.getCurrentPosition(
+    //   (position) => {
+    //     setFormData(prev => ({
+    //       ...prev,
+    //       coordinates: {
+    //         lat: position.coords.latitude,
+    //         lng: position.coords.longitude,
+    //       }
+    //     }));
+    //     setShowMap(true); // show map so user can fine-tune if needed
+    //     setError(''); // clear any previous errors
+    //   },
+    //   () => setError("Unable to retrieve your location. Please select manually.")
+    // );
+  };
 
   const renderRatingHearts = () => {
     const displayRating = hoverRating !== null ? hoverRating : formData.initialRating;
@@ -208,14 +268,14 @@ const AddDateForm: React.FC<AddDateFormProps> = ({ onAdd, onCancel, allSpots }) 
   const labelClass = "block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 tracking-wide";
 
   return (
-    <motion.div variants={containerVariants} initial="hidden" animate="visible" className="relative overflow-hidden">
+    <motion.div ref={formRef} variants={containerVariants} initial="hidden" animate="visible" className="relative overflow-hidden">
       <div className="relative bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-3xl border border-gray-200/50 dark:border-gray-700/50 shadow-2xl p-8">
         <AnimatePresence>
           {error && <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="mb-6 p-5 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 rounded-2xl">{error}</motion.div>}
           {success && <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="mb-6 p-5 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded-2xl">Date spot added successfully!</motion.div>}
         </AnimatePresence>
 
-       
+
         <form onSubmit={handleSubmit} className="space-y-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <motion.div variants={itemVariants}>
@@ -232,11 +292,11 @@ const AddDateForm: React.FC<AddDateFormProps> = ({ onAdd, onCancel, allSpots }) 
                 value={formData.name}
                 onChange={handleChange}
                 className={inputClass}
-                placeholder="e.g. Slottsskogen Park"
+                placeholder="e.g. The café in Slottskogen"
                 required
               />
             </motion.div>
-            
+
             <motion.div variants={itemVariants}>
               <label htmlFor="location" className={labelClass}>
                 <span className="inline-flex items-center">
@@ -255,22 +315,47 @@ const AddDateForm: React.FC<AddDateFormProps> = ({ onAdd, onCancel, allSpots }) 
                 required
               />
             </motion.div>
+
           </div>
 
           <motion.div variants={itemVariants}>
             <button type="button" onClick={() => setShowMap(prev => !prev)} className="mt-3 px-4 py-2 bg-pink-500 text-white rounded-xl shadow hover:bg-pink-600">
               {showMap ? "Hide Map" : formData.coordinates ? "Change Location on Map" : "Add Location on Map"}
             </button>
+
           </motion.div>
 
           {showMap && (
-            <motion.div variants={itemVariants} className="mt-4 h-64">
+
+            <><motion.div variants={itemVariants} className="mt-4 rounded-3xl overflow-hidden shadow-lg border border-gray-200 dark:border-gray-700 h-64">
               <MapWithNoSSR
                 selectedCoordinates={formData.coordinates}
-                onSelect={(latLng) => setFormData(p => ({ ...p, coordinates: latLng }))}
+                defaultCenter={userLocation || undefined} // ✅ Center map if user location exists
+
+                onSelect={async (latLng) => {
+                  const landmark = await getLandmarkFromCoords(latLng.lat, latLng.lng);
+                  setFormData(p => ({
+                    ...p,
+                    coordinates: latLng,
+                    location: landmark || p.location, // fill location field if found
+                  }));
+                }}
               />
-            </motion.div>
+
+            </motion.div><motion.div variants={itemVariants} className="mt-4 flex justify-end">
+                <button
+                  type="button"
+                  onClick={handleUseCurrentLocation}
+                  className="px-4 py-2 bg-pink-500 text-white rounded-xl shadow hover:bg-pink-600 transition-all duration-300"
+                >
+                  📍 Use My Current Location
+                </button>
+              </motion.div></>
+
+
+
           )}
+
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <motion.div variants={itemVariants}>
@@ -302,7 +387,7 @@ const AddDateForm: React.FC<AddDateFormProps> = ({ onAdd, onCancel, allSpots }) 
                 </div>
               </div>
             </motion.div>
-            
+
             <motion.div variants={itemVariants}>
               <label htmlFor="priceLevel" className={labelClass}>
                 <span className="inline-flex items-center">
@@ -332,7 +417,7 @@ const AddDateForm: React.FC<AddDateFormProps> = ({ onAdd, onCancel, allSpots }) 
               </div>
             </motion.div>
           </div>
-          
+
           <motion.div variants={itemVariants}>
             <label htmlFor="description" className={labelClass}>
               <span className="inline-flex items-center">
@@ -370,12 +455,11 @@ const AddDateForm: React.FC<AddDateFormProps> = ({ onAdd, onCancel, allSpots }) 
                       onChange={() => handleImageOptionChange('url')}
                       className="sr-only"
                     />
-                    <div className={`w-6 h-6 rounded-full border-2 transition-all duration-300 ${
-                      useUrl 
-                        ? 'border-pink-500 bg-pink-500 shadow-lg shadow-pink-500/30' 
-                        : 'border-gray-300 dark:border-gray-600 group-hover:border-pink-400'
-                    }`}>
-                      <motion.div 
+                    <div className={`w-6 h-6 rounded-full border-2 transition-all duration-300 ${useUrl
+                      ? 'border-pink-500 bg-pink-500 shadow-lg shadow-pink-500/30'
+                      : 'border-gray-300 dark:border-gray-600 group-hover:border-pink-400'
+                      }`}>
+                      <motion.div
                         className="w-2 h-2 bg-white rounded-full absolute top-1 left-1"
                         animate={{ scale: useUrl ? 1 : 0 }}
                         transition={{ duration: 0.2 }}
@@ -384,7 +468,7 @@ const AddDateForm: React.FC<AddDateFormProps> = ({ onAdd, onCancel, allSpots }) 
                   </div>
                   <span className="ml-4 text-gray-700 dark:text-gray-300 font-medium">Use Image URL</span>
                 </label>
-                
+
                 <label className="flex items-center cursor-pointer group">
                   <div className="relative">
                     <input
@@ -394,12 +478,11 @@ const AddDateForm: React.FC<AddDateFormProps> = ({ onAdd, onCancel, allSpots }) 
                       onChange={() => handleImageOptionChange('upload')}
                       className="sr-only"
                     />
-                    <div className={`w-6 h-6 rounded-full border-2 transition-all duration-300 ${
-                      !useUrl 
-                        ? 'border-pink-500 bg-pink-500 shadow-lg shadow-pink-500/30' 
-                        : 'border-gray-300 dark:border-gray-600 group-hover:border-pink-400'
-                    }`}>
-                      <motion.div 
+                    <div className={`w-6 h-6 rounded-full border-2 transition-all duration-300 ${!useUrl
+                      ? 'border-pink-500 bg-pink-500 shadow-lg shadow-pink-500/30'
+                      : 'border-gray-300 dark:border-gray-600 group-hover:border-pink-400'
+                      }`}>
+                      <motion.div
                         className="w-2 h-2 bg-white rounded-full absolute top-1 left-1"
                         animate={{ scale: !useUrl ? 1 : 0 }}
                         transition={{ duration: 0.2 }}
@@ -410,10 +493,10 @@ const AddDateForm: React.FC<AddDateFormProps> = ({ onAdd, onCancel, allSpots }) 
                 </label>
               </div>
             </div>
-            
+
             <AnimatePresence mode="wait">
               {useUrl ? (
-                <motion.div 
+                <motion.div
                   key="url-input"
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
@@ -432,7 +515,7 @@ const AddDateForm: React.FC<AddDateFormProps> = ({ onAdd, onCancel, allSpots }) 
                   />
                 </motion.div>
               ) : (
-                <motion.div 
+                <motion.div
                   key="file-input"
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
@@ -443,19 +526,17 @@ const AddDateForm: React.FC<AddDateFormProps> = ({ onAdd, onCancel, allSpots }) 
                   <div className="space-y-6">
                     <label
                       htmlFor="imageFile"
-                      className={`group relative flex flex-col items-center justify-center w-full py-8 px-6 border-2 border-dashed rounded-2xl cursor-pointer transition-all duration-300 ${
-                        isSubmitting && uploadProgress !== null
-                          ? 'border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800/50 cursor-not-allowed'
-                          : 'border-pink-300 dark:border-pink-600 hover:border-pink-500 dark:hover:border-pink-400 bg-pink-50/50 dark:bg-pink-900/10 hover:bg-pink-100/50 dark:hover:bg-pink-900/20'
-                      }`}
+                      className={`group relative flex flex-col items-center justify-center w-full py-8 px-6 border-2 border-dashed rounded-2xl cursor-pointer transition-all duration-300 ${isSubmitting && uploadProgress !== null
+                        ? 'border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800/50 cursor-not-allowed'
+                        : 'border-pink-300 dark:border-pink-600 hover:border-pink-500 dark:hover:border-pink-400 bg-pink-50/50 dark:bg-pink-900/10 hover:bg-pink-100/50 dark:hover:bg-pink-900/20'
+                        }`}
                     >
                       <div className="text-center">
-                        <motion.div 
-                          className={`inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4 ${
-                            isSubmitting && uploadProgress !== null
-                              ? 'bg-gray-200 dark:bg-gray-700'
-                              : 'bg-gradient-to-br from-pink-500 to-purple-600 group-hover:from-pink-600 group-hover:to-purple-700'
-                          }`}
+                        <motion.div
+                          className={`inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4 ${isSubmitting && uploadProgress !== null
+                            ? 'bg-gray-200 dark:bg-gray-700'
+                            : 'bg-gradient-to-br from-pink-500 to-purple-600 group-hover:from-pink-600 group-hover:to-purple-700'
+                            }`}
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}
                         >
@@ -463,11 +544,10 @@ const AddDateForm: React.FC<AddDateFormProps> = ({ onAdd, onCancel, allSpots }) 
                             {isSubmitting && uploadProgress !== null ? '⏳' : '🖼️'}
                           </span>
                         </motion.div>
-                        <p className={`text-lg font-semibold mb-2 ${
-                          isSubmitting && uploadProgress !== null
-                            ? 'text-gray-500 dark:text-gray-400'
-                            : 'text-gray-700 dark:text-gray-300'
-                        }`}>
+                        <p className={`text-lg font-semibold mb-2 ${isSubmitting && uploadProgress !== null
+                          ? 'text-gray-500 dark:text-gray-400'
+                          : 'text-gray-700 dark:text-gray-300'
+                          }`}>
                           {imageFile ? 'Change Image' : 'Choose an Image'}
                         </p>
                         <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -484,10 +564,10 @@ const AddDateForm: React.FC<AddDateFormProps> = ({ onAdd, onCancel, allSpots }) 
                         disabled={isSubmitting && uploadProgress !== null}
                       />
                     </label>
-                    
+
                     <AnimatePresence>
                       {previewImage && (
-                        <motion.div 
+                        <motion.div
                           initial={{ opacity: 0, scale: 0.9 }}
                           animate={{ opacity: 1, scale: 1 }}
                           exit={{ opacity: 0, scale: 0.9 }}
@@ -515,9 +595,9 @@ const AddDateForm: React.FC<AddDateFormProps> = ({ onAdd, onCancel, allSpots }) 
 
                     <AnimatePresence>
                       {uploadProgress !== null && (
-                        <motion.div 
-                          initial={{ opacity: 0, height: 0 }} 
-                          animate={{ opacity: 1, height: 'auto' }} 
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
                           exit={{ opacity: 0, height: 0 }}
                           className="space-y-4 p-6 bg-gradient-to-r from-pink-50 to-purple-50 dark:from-pink-900/20 dark:to-purple-900/20 rounded-2xl border border-pink-200 dark:border-pink-800"
                         >
@@ -544,7 +624,51 @@ const AddDateForm: React.FC<AddDateFormProps> = ({ onAdd, onCancel, allSpots }) 
               )}
             </AnimatePresence>
           </motion.div>
-          
+
+
+          <motion.label
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className="flex items-center space-x-2 cursor-pointer select-none"
+          >
+            <motion.input
+              type="checkbox"
+              checked={formData.petFriendly}
+              onChange={(e) =>
+                setFormData({ ...formData, petFriendly: e.target.checked })
+              }
+              className="w-5 h-5 text-pink-500 border-gray-300 rounded focus:ring-pink-400"
+              whileTap={{ scale: 1.2 }}
+            />
+
+            <motion.span
+              initial={{ opacity: 0.6, x: -4 }}
+              animate={{
+                opacity: formData.petFriendly ? 1 : 0.7,
+                x: formData.petFriendly ? 0 : -4,
+                color: formData.petFriendly ? "#ec4899" : "#ec4899", // pink when checked
+              }}
+              transition={{ type: "spring", stiffness: 300, damping: 20 }}
+              className="text-sm dark:text-zinc-200"
+            >
+              🐾 Pet Friendly
+            </motion.span>
+
+            <AnimatePresence>
+              {formData.petFriendly && (
+                <motion.div
+                  key="paw"
+                  initial={{ scale: 0, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1, rotate: 10 }}
+                  exit={{ scale: 0, opacity: 0 }}
+                  transition={{ type: "spring", stiffness: 300, damping: 15 }}
+                  className="ml-1 text-pink-500"
+                >
+                  <LucideDog size={22.5} />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.label>
           <motion.div variants={itemVariants}>
             <label className={labelClass}>
               <span className="inline-flex items-center">
@@ -559,9 +683,7 @@ const AddDateForm: React.FC<AddDateFormProps> = ({ onAdd, onCancel, allSpots }) 
                   <span className="text-2xl font-bold text-pink-600 dark:text-pink-400">
                     {formData.initialRating}
                   </span>
-                  <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                    Heart{formData.initialRating !== 1 ? 's' : ''}
-                  </span>
+                 
                 </div>
               </div>
             </div>
@@ -569,7 +691,7 @@ const AddDateForm: React.FC<AddDateFormProps> = ({ onAdd, onCancel, allSpots }) 
               Click on hearts to set your rating for this spot
             </p>
           </motion.div>
-          
+
           <motion.div variants={itemVariants}>
             <label htmlFor="tags" className={labelClass}>
               <span className="inline-flex items-center">
@@ -590,8 +712,8 @@ const AddDateForm: React.FC<AddDateFormProps> = ({ onAdd, onCancel, allSpots }) 
               Separate multiple tags with commas
             </p>
           </motion.div>
-          
-          <motion.div 
+
+          <motion.div
             variants={itemVariants}
             className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-6 pt-8"
           >
@@ -605,7 +727,7 @@ const AddDateForm: React.FC<AddDateFormProps> = ({ onAdd, onCancel, allSpots }) 
               <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent opacity-0 hover:opacity-100 transition-opacity duration-300" />
               {isSubmitting ? (
                 <span className="relative flex items-center justify-center">
-                  <motion.div 
+                  <motion.div
                     className="w-6 h-6 border-2 border-white border-t-transparent rounded-full mr-3"
                     animate={{ rotate: 360 }}
                     transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
@@ -619,7 +741,7 @@ const AddDateForm: React.FC<AddDateFormProps> = ({ onAdd, onCancel, allSpots }) 
                 </span>
               )}
             </motion.button>
-            
+
             {onCancel && (
               <motion.button
                 type="button"
@@ -638,16 +760,16 @@ const AddDateForm: React.FC<AddDateFormProps> = ({ onAdd, onCancel, allSpots }) 
         </form>
       </div>
       {/* Global submitting overlay */}
-{isSubmitting && (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-    <div className="flex flex-col items-center">
-      <div className="w-16 h-16 border-4 border-pink-500 border-t-transparent rounded-full animate-spin"></div>
-      <p className="mt-4 text-white text-lg font-semibold">
-        Adding your spot...
-      </p>
-    </div>
-  </div>
-)}
+      {isSubmitting && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="flex flex-col items-center">
+            <div className="w-16 h-16 border-4 border-pink-500 border-t-transparent rounded-full animate-spin"></div>
+            <p className="mt-4 text-white text-lg font-semibold">
+              Adding your spot...
+            </p>
+          </div>
+        </div>
+      )}
 
     </motion.div>
   );

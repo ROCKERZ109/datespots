@@ -18,6 +18,7 @@ export interface DateSpot {
   createdAt: Date;
   createdBy?: string;
   coordinates?: GeoPoint; //
+   petFriendly?: boolean;
 }
 // types.ts
 export interface Vote {

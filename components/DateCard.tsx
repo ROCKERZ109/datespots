@@ -134,7 +134,7 @@ const DateCard: React.FC<DateCardProps> = ({ spot, onRate, onVote, user, userVot
       onHoverStart={() => setIsHovered(true)}
       onHoverEnd={() => setIsHovered(false)}
       onTouchStart={() => setIsHovered(prev => !prev)} // mobile tap toggle
-          className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden mb-6 border border-pink-100 dark:border-gray-700 hover:shadow-2xl transition-shadow duration-300"
+      className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden mb-6 border border-pink-100 dark:border-gray-700 hover:shadow-2xl transition-shadow duration-300"
 
       variants={cardVariants}
       initial="hidden"
@@ -246,6 +246,7 @@ const DateCard: React.FC<DateCardProps> = ({ spot, onRate, onVote, user, userVot
             </span>
           ))}
         </motion.div>
+       
 
         <motion.div
           className="flex justify-between items-center pt-4 border-t border-gray-100 dark:border-gray-700"
@@ -261,6 +262,33 @@ const DateCard: React.FC<DateCardProps> = ({ spot, onRate, onVote, user, userVot
               {spot.rating.toFixed(1)} ({spot.upvotes + spot.downvotes})
             </span>
           </div>
+          
+<AnimatePresence>
+  {spot.petFriendly && (
+    <motion.div
+      key="pet-friendly"
+      initial={{ opacity: 0, scale: 0.7, y: -4 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.9, y: -4 }}
+      transition={{ type: "spring", stiffness: 300, damping: 18 }}
+      className="relative group ml-1 inline-flex"
+    >
+      <span className="inline-flex items-center gap-1 px-2.5 py-1 text-xl font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 rounded-full shadow-sm">
+        🐶
+      </span>
+
+      {/* Tooltip */}
+      <span className="
+        absolute bottom-full mb-1 left-1/2 -translate-x-1/2
+        px-2 py-1 rounded bg-gray-800 text-white text-xs
+        opacity-0 group-hover:opacity-100 transition-opacity duration-200
+        pointer-events-none whitespace-nowrap
+      ">
+        Pet Friendly
+      </span>
+    </motion.div>
+  )}
+</AnimatePresence>
 
           <div className="flex items-center space-x-3">
             <span className="text-sm font-bold text-gray-700 dark:text-gray-300 tracking-wide">
@@ -298,7 +326,7 @@ const DateCard: React.FC<DateCardProps> = ({ spot, onRate, onVote, user, userVot
               }
             >
               <div className="flex items-baseline space-x-1">
-            <LiaHeartSolid className="w-6 h-6 text-red-400" />
+                <LiaHeartSolid className="w-6 h-6 text-red-400" />
                 <span className="text-xs font-semibold mt-1">{spot.upvotes}</span>
               </div>
 
@@ -325,7 +353,7 @@ const DateCard: React.FC<DateCardProps> = ({ spot, onRate, onVote, user, userVot
               }
             >
               <div className="flex items-baseline space-x-1">
-              <HeartOff className="w-6 h-6 text-red-400" />
+                <HeartOff className="w-6 h-6 text-red-400" />
                 <span className="text-xs font-semibold mt-1">{spot.downvotes}</span>
               </div>
             </motion.button>

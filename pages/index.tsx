@@ -1,5 +1,5 @@
 // pages/index.tsx
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { db } from '../lib/firebase';
 import { collection, addDoc, onSnapshot, query, orderBy, updateDoc, doc, getDocs, setDoc, where, deleteDoc, Timestamp } from 'firebase/firestore';
 import DateCard from '../components/DateCard';
@@ -10,7 +10,7 @@ import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, googleProvider } from '../lib/firebase';
 import { signInWithPopup, signOut } from 'firebase/auth';
 import { useTheme } from 'next-themes';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 
 // --- AuthButton Component ---
 const AuthButton: React.FC = () => {
@@ -67,7 +67,7 @@ const AuthButton: React.FC = () => {
       ) : (
         <button
           onClick={handleGoogleSignIn}
-          className="flex items-center space-x-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 dark:focus:ring-offset-gray-900 transition-all shadow-md hover:shadow-lg"
+          className="flex items-center space-x-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 dark:focus:ring-offset-gray-900 transition-colors shadow-sm"
         >
           <svg className="w-4 h-4" viewBox="0 0 24 24">
             <path
@@ -109,7 +109,7 @@ const ThemeToggle: React.FC = () => {
   if (!mounted) {
     return (
       <button
-        className="p-2 rounded-full bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm text-gray-800 dark:text-gray-200 border border-gray-300 dark:border-gray-600 hover:bg-white dark:hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 dark:focus:ring-offset-gray-900 transition-all"
+        className="p-2 rounded-full bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm text-gray-800 dark:text-gray-200 border border-gray-300 dark:border-gray-600 hover:bg-white dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 dark:focus:ring-offset-gray-900 transition-colors"
         aria-label="Switch theme"
       >
         ...
@@ -120,15 +120,27 @@ const ThemeToggle: React.FC = () => {
   return (
     <motion.button
       onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-      className="p-2 rounded-full bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm text-gray-800 dark:text-gray-200 border border-gray-300 dark:border-gray-600 hover:bg-white dark:hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 dark:focus:ring-offset-gray-900 transition-all"
+      className="p-2 rounded-full bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm text-gray-800 dark:text-gray-200 border border-gray-300 dark:border-gray-600 hover:bg-white dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 dark:focus:ring-offset-gray-900 transition-colors"
       aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
       whileHover={{ scale: 1.1 }}
       whileTap={{ scale: 0.9 }}
     >
-      {theme === 'dark' ? '🌙' : '☀️'}
+      {theme === 'dark' ? '☀️' : '🌙'}
     </motion.button>
   );
 };
+
+function haversine(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const R = 6371; // km
+  const toRad = (v: number) => v * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+    Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
 
 // --- Main Home Component ---
 export default function Home() {
@@ -142,6 +154,18 @@ export default function Home() {
   const [minRating, setMinRating] = useState<number>(0);
   const [sortBy, setSortBy] = useState<'rating' | 'name' | 'createdAt'>('rating');
   const [showAddForm, setShowAddForm] = useState(false);
+  const [userLocation, setUserLocation] = useState<{ lat: number, lng: number } | null>(null);
+  const searchRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        pos => setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        err => console.error('Location error', err),
+        { enableHighAccuracy: true }
+      );
+    }
+  }, []);
 
   // Fetch user votes
   useEffect(() => {
@@ -232,6 +256,23 @@ export default function Home() {
       downvotes: data.downvotes || 0,
     } as DateSpot;
   };
+  const scrollToTop = () => {
+    if (searchRef.current) {
+      const top = searchRef.current.getBoundingClientRect().top + window.scrollY;
+      // optional padding so it's not flush to top
+      const padding = 20;
+      window.scrollTo({ top: top - padding, behavior: 'smooth' });
+    }
+  };
+
+  // const requestLocation = () => {
+  //   console.log('Requesting user location...');
+  //   navigator.geolocation.getCurrentPosition(
+  //     pos => setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+  //     err => console.error(err),
+  //     { enableHighAccuracy: true }
+  //   );
+  // };
 
   const filteredSpots = useMemo(() => {
     let result = [...dateSpots];
@@ -280,12 +321,17 @@ export default function Home() {
       const spotsRef = collection(db, 'datespots');
       await addDoc(spotsRef, {
         ...spotData,
+        priceLevel: parseInt(spotData.priceLevel.toString()) as 1 | 2 | 3 | 4,
+        tags: spotData.tags.length > 0 ? spotData.tags : ['date spot'],
         rating: spotData.rating,
-        totalVotes: spotData.totalVotes,
+        totalVotes: 1,
+        upvotes: 0,
+        downvotes: 0,
         createdAt: new Date(),
         createdBy: user.uid,
         createdByDisplayName: user.displayName || 'Anonymous',
         createdByPhotoURL: user.photoURL || null,
+        petFriendly: spotData.petFriendly || false,
       });
 
       setShowAddForm(false);
@@ -329,10 +375,13 @@ export default function Home() {
         return;
       }
 
+      // Check if user has already voted for this spot
       const userCurrentVote = userVotes[documentId];
 
       if (voteType === 'remove') {
+        // Remove existing vote
         if (userCurrentVote) {
+          // Find the vote document to delete
           const votesRef = collection(db, 'votes');
           const q = query(
             votesRef,
@@ -345,6 +394,7 @@ export default function Home() {
             await deleteDoc(voteDoc.ref);
           });
 
+          // Update the spot counts
           const updateData = userCurrentVote === 'up'
             ? { upvotes: Math.max(0, (spot.upvotes || 0) - 1) }
             : { downvotes: Math.max(0, (spot.downvotes || 0) - 1) };
@@ -354,8 +404,10 @@ export default function Home() {
         return;
       }
 
+      // If user is changing their vote
       if (userCurrentVote) {
         if (userCurrentVote === voteType) {
+          // Same vote - remove it (toggle off)
           const votesRef = collection(db, 'votes');
           const q = query(
             votesRef,
@@ -368,6 +420,7 @@ export default function Home() {
             await deleteDoc(voteDoc.ref);
           });
 
+          // Update the spot counts
           const updateData = userCurrentVote === 'up'
             ? { upvotes: Math.max(0, (spot.upvotes || 0) - 1) }
             : { downvotes: Math.max(0, (spot.downvotes || 0) - 1) };
@@ -375,6 +428,7 @@ export default function Home() {
           await updateDoc(spotRef, updateData);
           return;
         } else {
+          // Changing vote from up to down or vice versa
           const votesRef = collection(db, 'votes');
           const q = query(
             votesRef,
@@ -387,21 +441,23 @@ export default function Home() {
             await updateDoc(voteDoc.ref, { voteType });
           });
 
+          // Update the spot counts
           const updateData = userCurrentVote === 'up'
             ? {
-                upvotes: Math.max(0, (spot.upvotes || 0) - 1),
-                downvotes: (spot.downvotes || 0) + 1
-              }
+              upvotes: Math.max(0, (spot.upvotes || 0) - 1),
+              downvotes: (spot.downvotes || 0) + 1
+            }
             : {
-                upvotes: (spot.upvotes || 0) + 1,
-                downvotes: Math.max(0, (spot.downvotes || 0) - 1)
-              };
+              upvotes: (spot.upvotes || 0) + 1,
+              downvotes: Math.max(0, (spot.downvotes || 0) - 1)
+            };
 
           await updateDoc(spotRef, updateData);
           return;
         }
       }
 
+      // New vote
       const votesRef = collection(db, 'votes');
       await addDoc(votesRef, {
         userId: user.uid,
@@ -410,6 +466,7 @@ export default function Home() {
         createdAt: new Date()
       });
 
+      // Update the spot counts
       const updateData = voteType === 'up'
         ? { upvotes: (spot.upvotes || 0) + 1 }
         : { downvotes: (spot.downvotes || 0) + 1 };
@@ -447,7 +504,7 @@ export default function Home() {
           </div>
 
           <h1 className="text-6xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-pink-500 via-fuchsia-600 to-indigo-600 dark:from-pink-400 dark:via-fuchsia-500 dark:to-purple-500 mb-4 tracking-tight">
-            💖 DateSpot
+            💖 DateSpots
           </h1>
           <p className="text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
             Discover and share the most romantic date spots in Gothenburg. Crowdsourced by people like you!
@@ -483,7 +540,7 @@ export default function Home() {
         {/* Filter and Sort Section */}
         <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-xl p-8 mb-12 border border-pink-100 dark:border-gray-700">
           <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6">
-            <div className="flex-1">
+            <div ref={searchRef} className="flex-1">
               <label htmlFor="search" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 🔍 Search Date Spots
               </label>
@@ -491,6 +548,7 @@ export default function Home() {
                 type="text"
                 id="search"
                 value={searchTerm}
+                onFocus={scrollToTop}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full px-5 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-pink-500 dark:bg-gray-700 dark:text-white transition-all duration-300 shadow-sm"
                 placeholder="Search by name, location, or description..."
@@ -608,8 +666,8 @@ export default function Home() {
               <AddDateForm
                 onAdd={handleAddSpot}
                 onCancel={() => setShowAddForm(false)}
-                 allSpots={dateSpots}
-              />
+                allSpots={dateSpots}
+                userLocation={userLocation} />
             </div>
           </div>
         </div>
