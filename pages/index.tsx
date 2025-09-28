@@ -11,30 +11,51 @@ import { auth, googleProvider } from '../lib/firebase';
 import { signInWithPopup, signOut } from 'firebase/auth';
 import { useTheme } from 'next-themes';
 import { motion, AnimatePresence } from 'framer-motion';
-
 // --- AuthButton Component ---
+
+
+  // --- Custom Alert Modal States ---
+
+// --- Custom Alert Modal Component ---
+
 const AuthButton: React.FC<{ inApp: boolean }> = ({ inApp }) => {
   const [user, loading] = useAuthState(auth);
+  
+  const [showLoginDialog, setShowLoginDialog] = useState(false);
+  const [alertCard, setAlertCard] = useState<{
+  title: string;
+  message: string;
+  onConfirm?: () => void;
+  onCancel?: () => void;
+} | null>(null);
 
+
+
+
+ 
   const handleGoogleSignIn = async () => {
     if (inApp) {
-      alert(
-        'Google sign-in is disabled inside in-app browsers.\n' +
-        'Please open this page in your default browser (Safari/Chrome).'
-      );
-      return;
+      setShowLoginDialog(true);
+       setAlertCard({
+    title: 'Sign-in Unavailable',
+    message: 'Google sign-in is disabled inside in-app browsers. Please open in Safari or Chrome.',
+    onConfirm: () => setAlertCard(null),
+  });
+  return;
     }
     try {
-    await signInWithPopup(auth, googleProvider);
-  } catch (error: any) {
-    if (error.code === 'auth/cancelled-popup-request') {
-      // User closed popup or another popup is open, silently ignore
-      console.log('Google sign-in was cancelled by user or popup conflict.');
-      return;
+      await signInWithPopup(auth, googleProvider);
+    } catch (error: any) {
+      if (error.code.includes('FirebaseError: Firebase: Error (auth/popup-closed-by-user)') || error.code.includes('popup-blocked')) {
+        // User closed popup or another popup is open, silently ignore
+        console.log('Google sign-in was cancelled by user or popup conflict.');
+        return;
+      }
+    //   console.error('Error signing in with Google:', error);
+    //    setTimeout(() => {
+    //   alert('Failed to sign in. Please try again.');
+    // }, 0);
     }
-    console.error('Error signing in with Google:', error);
-    alert('Failed to sign in. Please try again.');
-  }
   };
   const handleSignOut = async () => {
     try {
@@ -101,9 +122,40 @@ const AuthButton: React.FC<{ inApp: boolean }> = ({ inApp }) => {
           </svg>
           <span>Sign in with Google</span>
         </button>
-       
+
       )}
-       
+ {/* ✨ Login required popup */}
+      <AnimatePresence>
+        {showLoginDialog && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div
+              className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 max-w-xs w-full text-center border border-pink-200 dark:border-gray-700"
+              initial={{ scale: 0.8 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0.8 }}
+            >
+              <h4 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-2">
+                Almost there!
+              </h4>
+              <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
+                Please open this page in Safari, Chrome, or another standard browser to sign in.
+              </p>
+              <button
+                onClick={() => setShowLoginDialog(false)}
+                className="px-4 py-2 rounded-full bg-pink-500 hover:bg-pink-600 text-white font-medium shadow-md transition-colors"
+              >
+                Got it
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
     </div>
   );
 };
@@ -187,6 +239,27 @@ export default function Home() {
   const [userLocation, setUserLocation] = useState<{ lat: number, lng: number } | null>(null);
   const searchRef = useRef<HTMLDivElement>(null);
   const [inApp, setInApp] = useState(false);
+ 
+    const [alertModal, setAlertModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    type: 'info' as 'info' | 'warning' | 'error' | 'success',
+    onConfirm: null as unknown as (() => void) | undefined,
+    confirmText: 'OK',
+    cancelText: 'Cancel'
+  });
+
+    // --- Close alert modal handler ---
+  const closeAlertModal = () => {
+    setAlertModal(prev => ({ ...prev, isOpen: false }));
+  };
+  const [alertCard, setAlertCard] = useState<{
+    title: string;
+    message: string;
+    onConfirm?: () => void;
+    onCancel?: () => void;
+  } | null>(null);
 
   useEffect(() => {
     if (navigator.geolocation) {
@@ -350,9 +423,20 @@ export default function Home() {
     return result;
   }, [dateSpots, searchTerm, selectedCategory, minRating, sortBy]);
 
+
+
   const handleAddSpot = useCallback(async (spotData: Omit<DateSpot, 'id' | 'createdAt'>) => {
     if (!user) {
-      alert('Please sign in with Google to add a new date spot!');
+       alert({
+    title: 'Sign in required',
+    message: 'Please sign in with Google to add a new date spot.',
+    onConfirm: async () => {
+      await signInWithPopup(auth, googleProvider);
+      setAlertCard(null);
+    },
+    onCancel: () => setAlertCard(null),
+  });
+
       return;
     }
 
@@ -691,6 +775,7 @@ export default function Home() {
           <p>Made with 💖 for anyone who appreciates thoughtful date ideas</p>
         </footer>
       </div>
+      
 
       {/* Modal for Add Date Form - Only show if user is signed in */}
       {showAddForm && user && (
@@ -715,6 +800,8 @@ export default function Home() {
           </div>
         </div>
       )}
+       {/* --- Custom Alert Modal --- */}
+      
     </div>
   );
 }
