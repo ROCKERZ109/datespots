@@ -111,7 +111,7 @@ const ClickHandler: React.FC<{
 };
 
 const LeafLet: React.FC<LeafLetProps> = ({ selectedCoordinates, onSelect, defaultCenter }) => {
-  const MAX_RADIUS_KM = 500;
+  const MAX_RADIUS_KM = 20000;
   
   // Gothenburg fallback
   const enforcedDefaultCenter = defaultCenter || { lat: 57.7089, lng: 11.9746 };
