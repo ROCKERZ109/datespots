@@ -312,6 +312,7 @@ const AddDateForm: React.FC<AddDateFormProps> = ({ onAdd, onCancel, allSpots, us
                 onChange={handleChange}
                 className={inputClass}
                 placeholder="e.g. Haga, Göteborg"
+                readOnly
                 required
               />
             </motion.div>
@@ -320,12 +321,12 @@ const AddDateForm: React.FC<AddDateFormProps> = ({ onAdd, onCancel, allSpots, us
 
           <motion.div variants={itemVariants}>
             <button type="button" onClick={() => setShowMap(prev => !prev)} className="mt-3 px-4 py-2 bg-pink-500 text-white rounded-xl shadow hover:bg-pink-600">
-              {showMap ? "Hide Map" : formData.coordinates ? "Change Location on Map" : "Add Location on Map"}
+              {"Change Location on Map" }
             </button>
 
           </motion.div>
 
-          {showMap && (
+          {true && (
 
             <><motion.div variants={itemVariants} className="mt-4 rounded-3xl overflow-hidden shadow-lg border border-gray-200 dark:border-gray-700 h-64">
               <MapWithNoSSR

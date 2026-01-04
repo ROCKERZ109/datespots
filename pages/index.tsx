@@ -14,34 +14,34 @@ import { motion, AnimatePresence } from 'framer-motion';
 // --- AuthButton Component ---
 
 
-  // --- Custom Alert Modal States ---
+// --- Custom Alert Modal States ---
 
 // --- Custom Alert Modal Component ---
 
 const AuthButton: React.FC<{ inApp: boolean }> = ({ inApp }) => {
   const [user, loading] = useAuthState(auth);
-  
+
   const [showLoginDialog, setShowLoginDialog] = useState(false);
   const [alertCard, setAlertCard] = useState<{
-  title: string;
-  message: string;
-  onConfirm?: () => void;
-  onCancel?: () => void;
-} | null>(null);
+    title: string;
+    message: string;
+    onConfirm?: () => void;
+    onCancel?: () => void;
+  } | null>(null);
 
 
 
 
- 
+
   const handleGoogleSignIn = async () => {
     if (inApp) {
       setShowLoginDialog(true);
-       setAlertCard({
-    title: 'Sign-in Unavailable',
-    message: 'Google sign-in is disabled inside in-app browsers. Please open in Safari or Chrome.',
-    onConfirm: () => setAlertCard(null),
-  });
-  return;
+      setAlertCard({
+        title: 'Sign-in Unavailable',
+        message: 'Google sign-in is disabled inside in-app browsers. Please open in Safari or Chrome.',
+        onConfirm: () => setAlertCard(null),
+      });
+      return;
     }
     try {
       await signInWithPopup(auth, googleProvider);
@@ -51,10 +51,10 @@ const AuthButton: React.FC<{ inApp: boolean }> = ({ inApp }) => {
         console.log('Google sign-in was cancelled by user or popup conflict.');
         return;
       }
-    //   console.error('Error signing in with Google:', error);
-    //    setTimeout(() => {
-    //   alert('Failed to sign in. Please try again.');
-    // }, 0);
+      //   console.error('Error signing in with Google:', error);
+      //    setTimeout(() => {
+      //   alert('Failed to sign in. Please try again.');
+      // }, 0);
     }
   };
   const handleSignOut = async () => {
@@ -124,7 +124,7 @@ const AuthButton: React.FC<{ inApp: boolean }> = ({ inApp }) => {
         </button>
 
       )}
- {/* ✨ Login required popup */}
+      {/* ✨ Login required popup */}
       <AnimatePresence>
         {showLoginDialog && (
           <motion.div
@@ -236,11 +236,15 @@ export default function Home() {
   const [minRating, setMinRating] = useState<number>(0);
   const [sortBy, setSortBy] = useState<'rating' | 'name' | 'distance' | 'createdAt'>('rating');
   const [showAddForm, setShowAddForm] = useState(false);
-  const [userLocation, setUserLocation] = useState<{ lat: number, lng: number } | null>(null);
   const searchRef = useRef<HTMLDivElement>(null);
   const [inApp, setInApp] = useState(false);
- 
-    const [alertModal, setAlertModal] = useState({
+  const [userLocation, setUserLocation] = useState<{ lat: number, lng: number } | null>(null);
+  const [showAllLocations, setShowAllLocations] = useState(false); // Default: limit to nearby
+  const [maxDistance, setMaxDistance] = useState<number>(300); // Default 200km
+
+  // 🎯 Define max radius for filtering here
+  const MAX_RADIUS_KM = 100;
+  const [alertModal, setAlertModal] = useState({
     isOpen: false,
     title: '',
     message: '',
@@ -250,7 +254,7 @@ export default function Home() {
     cancelText: 'Cancel'
   });
 
-    // --- Close alert modal handler ---
+  // --- Close alert modal handler ---
   const closeAlertModal = () => {
     setAlertModal(prev => ({ ...prev, isOpen: false }));
   };
@@ -304,19 +308,19 @@ export default function Home() {
         const spotsRef = collection(db, 'datespots');
         const snapshot = await getDocs(spotsRef);
 
-        if (snapshot.empty) {
-          console.log('Initializing with sample data...');
-          const writePromises = initialDateSpots.map(async (spot) => {
-            const docRef = doc(db, 'datespots', spot.id);
-            return setDoc(docRef, {
-              ...spot,
-              createdAt: new Date(spot.createdAt)
-            });
-          });
+        // if (snapshot.empty) {
+        //   console.log('Initializing with sample data...');
+        //   const writePromises = initialDateSpots.map(async (spot) => {
+        //     const docRef = doc(db, 'datespots', spot.id);
+        //     return setDoc(docRef, {
+        //       ...spot,
+        //       createdAt: new Date(spot.createdAt)
+        //     });
+        //   });
 
-          await Promise.all(writePromises);
-          console.log('Sample data initialized successfully with custom IDs!');
-        }
+        //   await Promise.all(writePromises);
+        //   console.log('Sample data initialized successfully with custom IDs!');
+        // }
       } catch (error) {
         console.error('Error initializing ', error);
       }
@@ -381,10 +385,11 @@ export default function Home() {
   //     { enableHighAccuracy: true }
   //   );
   // };
-
+  // Inside Home component:
   const filteredSpots = useMemo(() => {
     let result = [...dateSpots];
 
+    // 1. Search, Category, Rating (No changes)
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       result = result.filter(spot =>
@@ -403,12 +408,41 @@ export default function Home() {
       result = result.filter(spot => spot.rating >= minRating);
     }
 
+    // 2. 🚀 UPDATED: Dynamic Distance Filter
+    // Only apply filter if User Location is ON and "Show All" is OFF
+    if (userLocation && !showAllLocations) {
+      result = result.filter(spot => {
+        if (!spot.coordinates) return false;
 
+        const spotLat = spot.coordinates.latitude || spot.coordinates.latitude;
+        const spotLng = spot.coordinates.longitude || spot.coordinates.longitude;
 
+        if (spotLat === undefined || spotLng === undefined) return false;
+
+        const distance = haversine(
+          userLocation.lat,
+          userLocation.lng,
+          spotLat,
+          spotLng
+        );
+
+        // Use the dynamic state here instead of a constant
+        return distance <= maxDistance;
+      });
+    }
+
+    // 3. Sorting (No changes)
     result.sort((a, b) => {
       if (sortBy === 'distance' && userLocation && a.coordinates && b.coordinates) {
-        const da = haversine(userLocation.lat, userLocation.lng, a.coordinates.latitude, a.coordinates.longitude);
-        const db = haversine(userLocation.lat, userLocation.lng, b.coordinates.latitude, b.coordinates.longitude);
+        const aLat = a.coordinates.latitude || a.coordinates.latitude;
+        const aLng = a.coordinates.longitude || a.coordinates.longitude;
+        const bLat = b.coordinates.latitude || b.coordinates.latitude;
+        const bLng = b.coordinates.longitude || b.coordinates.longitude;
+
+        if (aLat === undefined || bLat === undefined) return 0;
+
+        const da = haversine(userLocation.lat, userLocation.lng, aLat, aLng);
+        const db = haversine(userLocation.lat, userLocation.lng, bLat, bLng);
         return da - db;
       }
 
@@ -421,21 +455,18 @@ export default function Home() {
     });
 
     return result;
-  }, [dateSpots, searchTerm, selectedCategory, minRating, sortBy]);
-
-
-
+  }, [dateSpots, searchTerm, selectedCategory, minRating, sortBy, userLocation, showAllLocations, maxDistance]); // 👈 Added maxDistance dependency
   const handleAddSpot = useCallback(async (spotData: Omit<DateSpot, 'id' | 'createdAt'>) => {
     if (!user) {
-       alert({
-    title: 'Sign in required',
-    message: 'Please sign in with Google to add a new date spot.',
-    onConfirm: async () => {
-      await signInWithPopup(auth, googleProvider);
-      setAlertCard(null);
-    },
-    onCancel: () => setAlertCard(null),
-  });
+      alert({
+        title: 'Sign in required',
+        message: 'Please sign in with Google to add a new date spot.',
+        onConfirm: async () => {
+          await signInWithPopup(auth, googleProvider);
+          setAlertCard(null);
+        },
+        onCancel: () => setAlertCard(null),
+      });
 
       return;
     }
@@ -664,6 +695,8 @@ export default function Home() {
 
         {/* Filter and Sort Section */}
         <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-xl p-8 mb-12 border border-pink-100 dark:border-gray-700">
+
+          {/* Top Row: Search & Dropdowns */}
           <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6">
             <div ref={searchRef} className="flex-1">
               <label htmlFor="search" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -676,7 +709,7 @@ export default function Home() {
                 onFocus={scrollToTop}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full px-5 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-pink-500 dark:bg-gray-700 dark:text-white transition-all duration-300 shadow-sm"
-                placeholder="Search by name, location, or description..."
+                placeholder="Search by name, location..."
               />
             </div>
 
@@ -716,24 +749,70 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="mt-6 flex justify-end">
-            <div className="flex items-center space-x-3">
-              <span className="text-sm text-gray-600 dark:text-gray-400">Sort by:</span>
+          {/* Bottom Row: Distance Controls & Sort */}
+          <div className="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700 flex flex-col lg:flex-row items-center justify-between gap-6">
+
+            {/* 🌍 Left Side: Distance Controls */}
+            <div className="flex flex-col sm:flex-row items-center gap-6 w-full lg:w-auto">
+              {userLocation ? (
+                <>
+                  {/* Toggle Switch */}
+                  <label className="flex items-center cursor-pointer group flex-shrink-0">
+                    <div className="relative">
+                      <input
+                        type="checkbox"
+                        className="sr-only"
+                        checked={showAllLocations}
+                        onChange={() => setShowAllLocations(!showAllLocations)}
+                      />
+                      <div className={`block w-12 h-7 rounded-full transition-colors duration-300 ease-in-out ${showAllLocations ? 'bg-pink-500' : 'bg-gray-300 dark:bg-gray-600'}`}></div>
+                      <div className={`absolute left-1 top-1 bg-white w-5 h-5 rounded-full transition-transform duration-300 ease-in-out shadow-sm ${showAllLocations ? 'translate-x-5' : 'translate-x-0'}`}></div>
+                    </div>
+                    <span className="ml-3 text-sm font-medium text-gray-600 dark:text-gray-300 group-hover:text-gray-800 dark:group-hover:text-gray-100 transition-colors">
+                      {showAllLocations ? 'World View' : 'Nearby Only'}
+                    </span>
+                  </label>
+
+                  {/* 📏 Dynamic Slider (Hidden if "World View" is ON) */}
+                  {!showAllLocations && (
+                    <div className="flex items-center space-x-4 w-full sm:w-64 animate-in fade-in slide-in-from-left-4 duration-300">
+                      <span className="text-xs text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">
+                        Max Distance: <span className="text-pink-600 dark:text-pink-400 font-bold">{maxDistance} km</span>
+                      </span>
+                      <input
+                        type="range"
+                        min="5"
+                        max="1000"
+                        step="5"
+                        value={maxDistance}
+                        onChange={(e) => setMaxDistance(parseInt(e.target.value))}
+                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700 accent-pink-500 hover:accent-pink-600 transition-all"
+                      />
+                    </div>
+                  )}
+                </>
+              ) : (
+                <span className="text-sm text-gray-400 italic">⚠️ Enable location to filter by distance</span>
+              )}
+            </div>
+
+            {/* 👉 Right Side: Sort By */}
+            <div className="flex items-center space-x-3 w-full lg:w-auto justify-end">
+              <span className="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">Sort by:</span>
               <select
                 value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as 'rating' | 'name' | 'createdAt')}
-                className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500 text-sm dark:bg-gray-700 dark:text-white transition-all duration-300"
+                onChange={(e) => setSortBy(e.target.value as 'rating' | 'name' | 'createdAt' | 'distance')}
+                className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500 text-sm dark:bg-gray-700 dark:text-white transition-all duration-300 cursor-pointer"
               >
-                <option value="rating" className="dark:bg-gray-800">Hearts</option>
-                <option value="name" className="dark:bg-gray-800">Name</option>
-                <option value="createdAt" className="dark:bg-gray-800">Newest</option>
-                <option value="distance" className="dark:bg-gray-800">Nearest</option>
-
+                <option value="distance" className="dark:bg-gray-800">📍 Nearest</option>
+                <option value="rating" className="dark:bg-gray-800">💖 Hearts</option>
+                <option value="name" className="dark:bg-gray-800">📝 Name</option>
+                <option value="createdAt" className="dark:bg-gray-800">📅 Newest</option>
               </select>
             </div>
+
           </div>
         </div>
-
         {error ? (
           <div className="text-center py-16 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-2xl shadow-lg border border-red-200 dark:border-red-900">
             <div className="text-6xl mb-4">💔</div>
@@ -754,7 +833,7 @@ export default function Home() {
         ) : (
           <div>
             <div className="mb-8 text-gray-600 dark:text-gray-400 font-medium">
-              Found {filteredSpots.length} romantic date spot{filteredSpots.length !== 1 ? 's' : ''}
+              Found {filteredSpots.length} romantic date spot{filteredSpots.length !== 1 ? 's' : ''} near you
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
               {filteredSpots.map((spot) => (
@@ -775,7 +854,7 @@ export default function Home() {
           <p>Made with 💖 for anyone who appreciates thoughtful date ideas</p>
         </footer>
       </div>
-      
+
 
       {/* Modal for Add Date Form - Only show if user is signed in */}
       {showAddForm && user && (
@@ -800,8 +879,8 @@ export default function Home() {
           </div>
         </div>
       )}
-       {/* --- Custom Alert Modal --- */}
-      
+      {/* --- Custom Alert Modal --- */}
+
     </div>
   );
 }

@@ -1,4 +1,5 @@
 // lib/initialData.ts
+import { GeoPoint } from 'firebase/firestore';
 import { DateSpot } from '../types';
 
 export const initialDateSpots: DateSpot[] = [
@@ -16,7 +17,10 @@ export const initialDateSpots: DateSpot[] = [
     imageUrl: "https://t3.ftcdn.net/jpg/05/00/57/98/360_F_500579853_iUtfSMCiOp2dgaTmgGyZbzIMHfUWvC4r.jpg",
     createdAt: new Date('2024-01-15'),
     upvotes: 0,
-    downvotes: 0
+    downvotes: 0,
+    // Added fields
+    petFriendly: false, // Dogs generally not allowed inside the park/rides
+    coordinates:  new GeoPoint(57.69538532530327, 11.992507026982514) // Actual approx coords for Liseberg
   },
   {
     id: '2',
@@ -31,7 +35,10 @@ export const initialDateSpots: DateSpot[] = [
     imageUrl: "https://cms.goteborg.com/uploads/2020/12/slottsskogen-promenad-43.jpg",
     createdAt: new Date('2024-01-15'),
     upvotes: 0,
-    downvotes: 0
+    downvotes: 0,
+    // Added fields
+    petFriendly: true, // Parks are usually pet-friendly
+    coordinates: new GeoPoint(57.68459262015389, 11.944461376143918) // Actual approx coords for Slottsskogen
   },
   {
     id: '3',
@@ -46,7 +53,10 @@ export const initialDateSpots: DateSpot[] = [
     imageUrl: "https://cms.goteborg.com/uploads/2020/12/Haga_House-of-Vision_2309_04-scaled.jpg",
     createdAt: new Date('2024-01-15'),
     upvotes: 0,
-    downvotes: 0
+    downvotes: 0,
+    // Added fields
+    petFriendly: true, // Outdoor walking areas are usually pet-friendly
+    coordinates:  new GeoPoint(57.6985384,11.9519311) // Actual approx coords for Haga
   },
   {
     id: '4',
@@ -61,7 +71,10 @@ export const initialDateSpots: DateSpot[] = [
     imageUrl: "https://dynamic-media-cdn.tripadvisor.com/media/photo-o/18/3e/55/91/ett-maste-nar-man-ar.jpg?w=1200&h=-1&s=1",
     createdAt: new Date('2024-01-15'),
     upvotes: 0,
-    downvotes: 0
+    downvotes: 0,
+    // Added fields
+    petFriendly: true, // Gardens are generally pet-friendly (excluding indoor areas)
+    coordinates:  new GeoPoint(57.706466354857305, 11.976423265038605) // Actual approx coords
   },
   {
     id: '5',
@@ -76,7 +89,10 @@ export const initialDateSpots: DateSpot[] = [
     imageUrl: "https://cms.goteborg.com/uploads/2020/11/paddan-43-1-2048x1536.jpg",
     createdAt: new Date('2024-01-15'),
     upvotes: 0,
-    downvotes: 0
+    downvotes: 0,
+    // Added fields
+    petFriendly: false, // May not be allowed on the specific tour boats
+    coordinates:  new GeoPoint(57.70377425750224, 11.970010467511406)// Actual approx coords for Stenpiren
   },
   {
     id: '6',
@@ -91,7 +107,10 @@ export const initialDateSpots: DateSpot[] = [
     imageUrl: "https://en.upperhouse.se/uploads/sites/79/2018/11/1920-1080-upper-house-winter.jpg",
     createdAt: new Date('2024-01-15'),
     upvotes: 0,
-    downvotes: 0
+    downvotes: 0,
+    // Added fields
+    petFriendly: false, // Spas are not pet-friendly
+    coordinates:  new GeoPoint(57.69747828433729, 11.988963013621454) // Actual approx coords for Gothia Towers
   },
   {
     id: '7',
@@ -106,7 +125,10 @@ export const initialDateSpots: DateSpot[] = [
     imageUrl: "https://swedishgardens.se/wp-content/uploads/2019/10/botaniska-1.jpg",
     createdAt: new Date('2024-01-15'),
     upvotes: 0,
-    downvotes: 0
+    downvotes: 0,
+    // Added fields
+    petFriendly: true, // Outdoor garden is usually pet-friendly
+    coordinates:  new GeoPoint(57.682950855202265, 11.950344819768201) // Actual approx coords
   },
   {
     id: '8',
@@ -114,32 +136,21 @@ export const initialDateSpots: DateSpot[] = [
     location: "Majorna, Göteborg",
     category: "view",
     priceLevel: 1,
-    description: "Observation tower offering panoramic views over Gothenburg and the archipelago. Great for sunset views!",
+    description: "Observation tower offergiting panoramic views over Gothenburg and the archipelago. Great for sunset views!",
     rating: 4.6,
     totalVotes: 0,
     tags: ["Observation Tower", "Viewpoint", "Panoramic"],
     imageUrl: "https://www.mikaelsvensson.com/photo/wp-content/uploads/2022/11/221118108.jpg",
     createdAt: new Date('2024-01-15'),
     upvotes: 0,
-    downvotes: 0
+    downvotes: 0,
+    // Added fields
+    petFriendly: true, // Typically allowed in outdoor viewing areas
+    coordinates:  new GeoPoint(57.69956727968238, 11.932173515992389)// Actual approx coords
   },
   
   // Top restaurants with images
-  {
-    id: '9',
-    name: "Carbon",
-    location: "Göteborg City",
-    category: "food",
-    priceLevel: 4,
-    description: "International and European cuisine in an elegant setting. Perfect for a special date night.",
-    rating: 4.9,
-    totalVotes: 0,
-    tags: ["International", "European", "Fine Dining"],
-    imageUrl: "https://static.wixstatic.com/media/b40462_0c5bbc9525e6490eaba36cb51ccaff3b~mv2.jpg/v1/fill/w_980,h_653,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/6M7A9494.jpg",
-    createdAt: new Date('2024-01-15'),
-    upvotes: 0,
-    downvotes: 0
-  },
+  
   {
     id: '10',
     name: "Bord 27",
@@ -153,7 +164,10 @@ export const initialDateSpots: DateSpot[] = [
     imageUrl: "https://www.gp.se/images/og/75c1a12c-8b54-47d2-a6f3-0f6133be6c95/images/103lOifgX6rIR9F4bkeWlLIPqgdqM.jpg?width=1200&quality=75",
     createdAt: new Date('2024-01-15'),
     upvotes: 0,
-    downvotes: 0
+    downvotes: 0,
+    // Added fields
+    petFriendly: false, // Restaurants are typically not pet-friendly inside
+    coordinates:  new GeoPoint(57.697285283550336, 11.962909268748772) // Placeholder
   },
   {
     id: '11',
@@ -168,23 +182,12 @@ export const initialDateSpots: DateSpot[] = [
     imageUrl: "https://en.heaven23.se/uploads/sites/34/2016/12/dce4728c-e260-469c-bbc6-e2dce4dfa0ce-1280x800.jpg",
     createdAt: new Date('2024-01-15'),
     upvotes: 0,
-    downvotes: 0
+    downvotes: 0,
+    // Added fields
+    petFriendly: false, // Fine dining restaurants are not pet-friendly
+    coordinates:  new GeoPoint(57.69762375015898, 11.988522435896453) // Actual approx coords for Gothia Towers
   },
-  {
-    id: '12',
-    name: "Maharani",
-    location: "Göteborg City",
-    category: "food",
-    priceLevel: 3,
-    description: "Highly rated restaurant with exceptional cuisine. A hidden gem for food lovers.",
-    rating: 4.9,
-    totalVotes: 0,
-    tags: ["Indian", "Fine Dining", "Exceptional"],
-    imageUrl: "https://www.gp.se/images/article/b4dbd8dd-341d-4a0c-b7b4-74c116f8afda/images/0L7Q4CsisZvuU6sxJpuvmb91JzyM-REGULAR.jpg?width=1920&quality=75",
-    createdAt: new Date('2024-01-15'),
-    upvotes: 0,
-    downvotes: 0
-  },
+
   
   // Additional romantic spots with images
   {
@@ -200,7 +203,10 @@ export const initialDateSpots: DateSpot[] = [
     imageUrl: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRzjEhv1ihvHMoPXiVQgXrKnD6sPju3caI1ow&s",
     createdAt: new Date('2024-01-15'),
     upvotes: 0,
-    downvotes: 0
+    downvotes: 0,
+    // Added fields
+    petFriendly: true, // Outdoor strolling area is pet-friendly
+    coordinates:  new GeoPoint(57.70073940412776, 11.974809208891156)// Actual approx coords for Avenyn
   },
   {
     id: '14',
@@ -215,7 +221,10 @@ export const initialDateSpots: DateSpot[] = [
     imageUrl: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR1UptU8LJNmy8Qqp-MYRFANZDBSY9xUpZS0g&s",
     createdAt: new Date('2024-01-15'),
     upvotes: 0,
-    downvotes: 0
+    downvotes: 0,
+    // Added fields
+    petFriendly: true, // Outdoor nature areas are typically pet-friendly (check ferry rules)
+    coordinates:  new GeoPoint(57.635100343961405, 11.607401414737499) // Actual approx coords for Vinga
   },
   {
     id: '15',
@@ -230,6 +239,9 @@ export const initialDateSpots: DateSpot[] = [
     imageUrl: "https://res.cloudinary.com/foodfriends/image/upload/w_1200,h_600,c_fill,f_auto,q_auto/restaurant/b587306034d7a8bd9610288998a54f26.jpg",
     createdAt: new Date('2024-01-15'),
     upvotes: 0,
-    downvotes: 0
+    downvotes: 0,
+    // Added fields
+    petFriendly: false, // Bars/Restaurants are typically not pet-friendly inside
+    coordinates:  new GeoPoint(57.704437493052176, 11.96301539434193) // Placeholder
   }
 ];
