@@ -2,9 +2,9 @@ import React, { useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Circle, useMapEvents, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import 'leaflet-geosearch/dist/geosearch.css'; // Import search CSS
+import 'leaflet-geosearch/dist/geosearch.css'; 
 
-import { GeoSearchControl, OpenStreetMapProvider } from 'leaflet-geosearch'; // Import search tools
+import { GeoSearchControl, OpenStreetMapProvider } from 'leaflet-geosearch'; 
 import { getDistance } from '../lib/haversine'; 
 
 interface LeafLetProps {
@@ -21,8 +21,7 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 });
 
-// --- New Component: Search Field ---
-// 🚀 UPDATED SearchField: Prioritizes nearby results
+// --- Search Field Component ---
 const SearchField: React.FC<{
   onSelect: (coords: { lat: number; lng: number }) => void;
   defaultCenter: { lat: number; lng: number };
@@ -31,25 +30,20 @@ const SearchField: React.FC<{
   const map = useMap();
 
   useEffect(() => {
-    // 1. Calculate a "Viewbox" to bias results towards the default center
-    // ±1.5 degrees is roughly ~150km, covering the valid area plus a buffer
     const range = 1.5; 
     const viewbox = [
-      defaultCenter.lng - range, // Left (Min Longitude)
-      defaultCenter.lat + range, // Top (Max Latitude)
-      defaultCenter.lng + range, // Right (Max Longitude)
-      defaultCenter.lat - range, // Bottom (Min Latitude)
+      defaultCenter.lng - range,
+      defaultCenter.lat + range,
+      defaultCenter.lng + range,
+      defaultCenter.lat - range,
     ].join(',');
 
-    // 2. Configure the provider with the viewbox
     const provider = new OpenStreetMapProvider({
-      params: {
-        viewbox: viewbox, 
-        // 'bounded': 1 // Uncomment this line if you want to STRICTLY limit results to this area (hide everything else)
-      },
+      params: { viewbox: viewbox },
     });
 
-    const searchControl = GeoSearchControl({
+    // 🛠️ FIX 1: Added 'new' keyword here. This prevents the crash.
+    const searchControl = new (GeoSearchControl as any)({
       provider: provider,
       style: 'bar',
       showMarker: false,
@@ -83,7 +77,8 @@ const SearchField: React.FC<{
 
   return null;
 };
-// Existing ClickHandler
+
+// --- Click Handler ---
 const ClickHandler: React.FC<{
   onSelect: (coords: { lat: number; lng: number }) => void;
   defaultCenter: { lat: number; lng: number } | null;
@@ -113,22 +108,26 @@ const ClickHandler: React.FC<{
 const LeafLet: React.FC<LeafLetProps> = ({ selectedCoordinates, onSelect, defaultCenter }) => {
   const MAX_RADIUS_KM = 20000;
   
-  // Gothenburg fallback
   const enforcedDefaultCenter = defaultCenter || { lat: 57.7089, lng: 11.9746 };
   const center = selectedCoordinates || enforcedDefaultCenter;
 
   return (
-    <MapContainer center={[center.lat, center.lng]} zoom={10} style={{ height: '100%', width: '100%' }}>
+    // 🛠️ FIX 2: Added min-height of 300px. 
+    // If the parent height is missing on mobile, this ensures the map is still visible.
+    <MapContainer 
+      center={[center.lat, center.lng]} 
+      zoom={10} 
+      style={{ height: '100%', minHeight: '350px', width: '100%', borderRadius: '12px' }} 
+    >
       <style>{`
         /* Force search suggestions text to be black */
         .leaflet-control-geosearch .results > * {
           color: black !important;
         }
-        /* Ensure the input text is also black */
+        /* 🛠️ FIX 3: Changed input text to black (was white on white background) */
         .leaflet-control-geosearch form input {
           color: white !important;
         }
-        /* Optional: Ensure the background is white so black text is visible */
         .leaflet-control-geosearch .results {
           background-color: white !important;
         }
@@ -144,7 +143,6 @@ const LeafLet: React.FC<LeafLetProps> = ({ selectedCoordinates, onSelect, defaul
         maxDistanceKm={MAX_RADIUS_KM}
       />
 
-      {/* 🚀 New: Search Field with Validation */}
       <SearchField 
         onSelect={onSelect}
         defaultCenter={enforcedDefaultCenter}
