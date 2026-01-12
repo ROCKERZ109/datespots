@@ -9,8 +9,12 @@ import dynamic from 'next/dynamic';
 import { GeoPoint } from 'firebase/firestore';
 import { DogIcon, LucideDog } from 'lucide-react';
 
-const MapWithNoSSR = dynamic(() => import('./LeafLet'), { ssr: false });
-
+const MapWithNoSSR = dynamic(() => import('./MapComponent'), { ssr: false });
+// Dynamically import LeafLet with SSR disabled
+// const MapWithNoSSR = dynamic(() => import('./LeafLet'), { 
+//   ssr: false,
+//   loading: () => <div className="h-[350px] w-full bg-gray-100 animate-pulse rounded-xl flex items-center justify-center">Loading Map...</div>
+// });
 interface AddDateFormProps {
   onAdd: (spot: Omit<DateSpot, 'id' | 'createdAt' | 'coordinates'>) => void;
   onCancel?: () => void;
@@ -321,7 +325,7 @@ const AddDateForm: React.FC<AddDateFormProps> = ({ onAdd, onCancel, allSpots, us
 
           <motion.div variants={itemVariants}>
             <button type="button" onClick={() => setShowMap(prev => !prev)} className="mt-3 px-4 py-2 bg-pink-500 text-white rounded-xl shadow hover:bg-pink-600">
-              {"Change Location on Map" }
+              {"Add Location on Map" }
             </button>
 
           </motion.div>
