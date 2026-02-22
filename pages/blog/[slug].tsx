@@ -7,7 +7,7 @@ import { useTheme } from 'next-themes';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import Head from 'next/head';
-import { BlogPost } from '../blog';
+import { BlogPost } from '@/pages/blog';
 
 // ─── Theme Toggle ─────────────────────────────
 const ThemeToggle: React.FC = () => {
