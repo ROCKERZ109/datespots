@@ -8,7 +8,7 @@ const openai = new OpenAI({
 
 export async function POST(req: Request) {
   const { text } = await req.json();
-  
+
   const response = await openai.chat.completions.create({
     model: 'gpt-3.5-turbo',
     messages: [
@@ -17,6 +17,7 @@ export async function POST(req: Request) {
     ],
     max_tokens: 5,
   });
+  console.log('OpenAI response:', response);
 
   const score = parseFloat(response.choices[0].message.content || '');
   return NextResponse.json({ score: isNaN(score) || score < -1 || score > 1 ? null : score });

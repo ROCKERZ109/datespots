@@ -1,4 +1,7 @@
 // pages/index.tsx
+
+
+"use client";
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { db } from '../lib/firebase';
 import { collection, addDoc, onSnapshot, query, orderBy, updateDoc, doc, getDocs, setDoc, where, deleteDoc, Timestamp } from 'firebase/firestore';
