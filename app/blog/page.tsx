@@ -1,6 +1,8 @@
 // pages/blog.tsx
+
+"use client"
 import React, { useState, useEffect, useMemo } from 'react';
-import { db } from '../lib/firebase';
+import { db } from '../../lib/firebase';
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from 'next-themes';

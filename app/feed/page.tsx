@@ -1,18 +1,20 @@
 // pages/feed.tsx
+
+"use client"
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { db } from '../lib/firebase';
+import { db } from '../../lib/firebase';
 import {
   collection, addDoc, onSnapshot, query, orderBy, updateDoc, doc,
   getDocs, where, deleteDoc, Timestamp, limit,
 } from 'firebase/firestore';
-import { storage } from '../lib/firebase';
+import { storage } from '../../lib/firebase';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from 'next-themes';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import { auth, googleProvider } from '../lib/firebase';
+import { auth, googleProvider } from '../../lib/firebase';
 import { signInWithPopup } from 'firebase/auth';
-import { DateSpot } from '../types';
+import { DateSpot } from '../../types';
 import Link from 'next/link';
 import Head from 'next/head';
 
