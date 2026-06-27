@@ -31,7 +31,7 @@ import { auth, googleProvider } from "../lib/firebase";
 import { signInWithPopup, signOut } from "firebase/auth";
 import { useTheme } from "next-themes";
 import { motion, AnimatePresence } from "framer-motion";
-
+import Link from "next/link";
 // ─────────────────────────────────────────────
 // 🔐 Auth Button
 // ─────────────────────────────────────────────
@@ -294,6 +294,7 @@ const CATEGORY_OPTIONS = [
 // 🏡 Main Home Component
 // ─────────────────────────────────────────────
 export default function Home() {
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [user, loadingUser] = useAuthState(auth);
   const [dateSpots, setDateSpots] = useState<DateSpot[]>([]);
   const [userVotes, setUserVotes] = useState<Record<string, "up" | "down">>({});
@@ -656,12 +657,80 @@ export default function Home() {
           <FloatingHearts />
 
           {/* Top bar */}
-          <div className="flex justify-between items-center mb-12">
-            <div />
+          <div className="relative flex justify-between items-center mb-12">
+            {/* 🗺️ Desktop Navigation Pill (Hidden on Mobile) */}
+            <nav className="hidden md:flex items-center space-x-1 bg-white/60 dark:bg-gray-800/60 backdrop-blur-md px-2 py-1.5 rounded-2xl border border-gray-200 dark:border-gray-600 shadow-sm">
+              <Link
+                href="/"
+                className="px-4 py-1.5 rounded-xl text-sm font-bold bg-gradient-to-r from-rose-500 to-fuchsia-500 text-white shadow-md shadow-rose-500/20"
+              >
+                Home
+              </Link>
+              <Link
+                href="/feed"
+                className="px-4 py-1.5 rounded-xl text-sm font-semibold text-gray-600 dark:text-gray-300 hover:bg-white/80 dark:hover:bg-gray-700/80 hover:text-rose-500 dark:hover:text-rose-400 transition-all"
+              >
+                Feed
+              </Link>
+              <Link
+                href="/blog"
+                className="px-4 py-1.5 rounded-xl text-sm font-semibold text-gray-600 dark:text-gray-300 hover:bg-white/80 dark:hover:bg-gray-700/80 hover:text-rose-500 dark:hover:text-rose-400 transition-all"
+              >
+                Blog
+              </Link>
+            </nav>
+
+            {/* 📱 Mobile Menu Toggle (Hidden on Desktop) */}
+            <button
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="md:hidden w-10 h-10 flex items-center justify-center rounded-2xl bg-white/60 dark:bg-gray-800/60 backdrop-blur-md border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 transition-all active:scale-95"
+            >
+              {isMobileMenuOpen ? "✕" : "☰"}
+            </button>
+
             <div className="flex items-center space-x-3">
               <ThemeToggle />
               <AuthButton inApp={inApp} />
             </div>
+
+            {/* 📱 Mobile Dropdown Menu */}
+            {/* 📱 Mobile Dropdown Menu */}
+            <AnimatePresence>
+              {isMobileMenuOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -10, scale: 0.98 }}
+                  transition={{ duration: 0.2 }}
+                  className="absolute top-14 left-0 right-0 z-50 flex flex-col overflow-hidden bg-white/95 dark:bg-gray-800/95 backdrop-blur-xl rounded-2xl border border-gray-200 dark:border-gray-700 shadow-2xl md:hidden"
+                >
+                  <Link
+                    href="/"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="px-5 py-4 text-sm font-bold text-rose-500 dark:text-rose-400 bg-rose-50/80 dark:bg-rose-500/10 border-b border-gray-100 dark:border-gray-700/80 flex items-center justify-between"
+                  >
+                    <span>Home</span>
+                    <span className="text-rose-500 dark:text-rose-400 opacity-70">
+                      ●
+                    </span>
+                  </Link>
+                  <Link
+                    href="/feed"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="px-5 py-4 text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 border-b border-gray-100 dark:border-gray-700/80 transition-colors"
+                  >
+                    Feed
+                  </Link>
+                  <Link
+                    href="/blog"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="px-5 py-4 text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                  >
+                    Blog
+                  </Link>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
           {/* Title */}
