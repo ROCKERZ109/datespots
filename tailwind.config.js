@@ -11,5 +11,7 @@ module.exports = {
       // Your custom theme extensions
     },
   },
-  plugins: [],
+  plugins: [
+    require('@tailwindcss/typography'), // <-- Add this line!
+  ],
 }
